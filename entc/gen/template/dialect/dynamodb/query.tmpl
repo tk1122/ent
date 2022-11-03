@@ -177,11 +177,11 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 	{{- $receiver := $.Scope.Receiver -}}
 	id := {{ $receiver }}.ID
 	step := dynamodbgraph.NewStep(
-	dynamodbgraph.From({{ $n.Package }}.Collection, {{ $n.Package }}.{{ $n.ID.Constant }}, id),
-	dynamodbgraph.To({{ $e.Type.Package }}.Collection, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, []string{}),
-	dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.AttributeConstant }},
+	dynamodbgraph.From({{ $n.Package }}.Table, {{ $n.Package }}.{{ $n.ID.Constant }}, id),
+	dynamodbgraph.To({{ $e.Type.Package }}.Table, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, []string{}),
+	dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.TableConstant }},
 			{{- if $e.M2M -}}
-				{{ $n.Package }}.{{ $e.AttributeConstant }}...
+				{{ $n.Package }}.{{ $e.AttributesConstant }}...
 			{{- else -}}
 				{{ $n.Package }}.{{ $e.AttributeConstant }}
 			{{- end -}}
