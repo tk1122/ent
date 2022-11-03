@@ -35,14 +35,15 @@ func (m SchemaMode) Support(mode SchemaMode) bool { return m&mode != 0 }
 
 // Storage driver type for codegen.
 type Storage struct {
-	Name       string            // storage name.
-	Builder    reflect.Type      // query builder type.
-	Dialects   []string          // supported dialects.
-	IdentName  string            // identifier name (fields and funcs).
-	Imports    []string          // import packages needed.
-	SchemaMode SchemaMode        // schema mode support.
-	Ops        func(*Field) []Op // storage specific operations.
-	OpCode     func(Op) string   // operation code for predicates.
+	Name            string            // storage name.
+	Builder         reflect.Type      // query builder type.
+	Dialects        []string          // supported dialects.
+	IdentName       string            // identifier name (fields and funcs).
+	Imports         []string          // import packages needed.
+	SchemaMode      SchemaMode        // schema mode support.
+	Ops             func(*Field) []Op // storage specific operations.
+	OpCode          func(Op) string   // operation code for predicates.
+	NonSupportedOps func(*Field) []Op // operations not supported by a storage
 }
 
 // StorageDrivers holds the storage driver options for entc.
@@ -94,6 +95,12 @@ var drivers = []*Storage{
 		},
 		SchemaMode: Migrate,
 		OpCode:     opCodes(nil),
+		NonSupportedOps: func(f *Field) []Op {
+			if f.IsString() {
+				return []Op{HasSuffix}
+			}
+			return nil
+		},
 	},
 }
 

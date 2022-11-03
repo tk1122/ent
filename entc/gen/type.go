@@ -1586,6 +1586,18 @@ func (f *Field) Ops() []Op {
 	if f.Name != "id" && f.cfg != nil && f.cfg.Storage.Ops != nil {
 		ops = append(ops, f.cfg.Storage.Ops(f)...)
 	}
+	if f.cfg != nil && f.cfg.Storage.NonSupportedOps != nil {
+		var supportedOp []Op
+		nonSupportedOps := f.cfg.Storage.NonSupportedOps(f)
+		for _, op := range ops {
+			for _, nonSupportedOp := range nonSupportedOps {
+				if op != nonSupportedOp {
+					supportedOp = append(supportedOp, op)
+				}
+			}
+		}
+		return supportedOp
+	}
 	return ops
 }
 
