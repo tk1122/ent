@@ -28,7 +28,9 @@ type {{ $builder }} struct {
 	limit		*int
 	offset		*int
 	unique		*bool
+	{{- if ne $.Config.Storage.Name "dynamodb" }}
 	order		[]OrderFunc
+	{{- end }}
 	fields		[]string
 	predicates 	[]predicate.{{ $.Name }}
 	{{- /* Eager loading fields. */}}
@@ -70,11 +72,13 @@ func ({{ $receiver }} *{{ $builder }}) Unique(unique bool) *{{ $builder }} {
 	return {{ $receiver }}
 }
 
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 // Order adds an order step to the query.
 func ({{ $receiver }} *{{ $builder }}) Order(o ...OrderFunc) *{{ $builder }} {
 	{{ $receiver }}.order = append({{ $receiver }}.order, o...)
 	return {{ $receiver }}
 }
+{{- end }}
 
 {{/* this code has similarity with edge queries in client.tmpl */}}
 {{ range $e := $.Edges }}
@@ -281,7 +285,9 @@ func ({{ $receiver }} *{{ $builder }}) Clone() *{{ $builder }} {
 		config: 	{{ $receiver }}.config,
 		limit: 		{{ $receiver }}.limit,
 		offset: 	{{ $receiver }}.offset,
+		{{- if ne $.Config.Storage.Name "dynamodb" }}
 		order: 		append([]OrderFunc{}, {{ $receiver }}.order...),
+		{{- end }}
 		predicates: append([]predicate.{{ $.Name }}{}, {{ $receiver }}.predicates...),
 		{{- range $e := $.Edges }}
 			{{ $e.EagerLoadField }}: {{ $receiver }}.{{ $e.EagerLoadField }}.Clone(),
@@ -307,8 +313,8 @@ func ({{ $receiver }} *{{ $builder }}) Clone() *{{ $builder }} {
 		return {{ $receiver }}
 	}
 {{- end }}
-
 {{ $groupBuilder := pascal $.Name | printf "%sGroupBy" }}
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: {{ join (keys aggregate) ", " }}.
@@ -341,7 +347,7 @@ func ({{ $receiver }} *{{ $builder }}) GroupBy(field string, fields ...string) *
 	grbuild.flds, grbuild.scan = &grbuild.fields, grbuild.Scan
 	return grbuild
 }
-
+{{ end }}
 {{ $selectBuilder := pascal $.Name | printf "%sSelect" }}
 
 // Select allows the selection one or more fields/columns for the given query,
@@ -407,7 +413,7 @@ func ({{ $receiver }} *{{ $builder }}) prepareQuery(ctx context.Context) error {
 	{{- end }}
 {{- end }}
 
-
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{/* groupby builder */}}
 
 {{ $groupReceiver := receiver $groupBuilder }}
@@ -439,13 +445,11 @@ func ({{ $groupReceiver }} *{{ $groupBuilder }}) Scan(ctx context.Context, v any
 	return {{ $groupReceiver }}.{{ $.Storage }}Scan(ctx, v)
 }
 
-{{ if ne $.Config.Storage.Name "dynamodb" }}
 {{ with extend $ "Builder" $groupBuilder }}
 	{{ $tmpl := printf "dialect/%s/group" $.Storage }}
 	{{ xtemplate $tmpl . }}
 {{ end }}
 {{ end }}
-
 {{/* select builder */}}
 
 {{ $selectReceiver := receiver $selectBuilder }}
