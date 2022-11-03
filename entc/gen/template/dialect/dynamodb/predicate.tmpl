@@ -89,47 +89,29 @@ in the LICENSE file in the root directory of this source tree.
 
 {{ define "dialect/dynamodb/predicate/and" -}}
 	func(s *dynamodb.Selector) {
-		if len(predicates) == 0 {
- 			return
- 		}
-
- 		var ps []*dynamodb.Predicate
- 		for _, p := range predicates {
- 			selector := dynamodb.Select().Setwd(s.Getwd())
- 			p(selector)
-
- 			ps = append(ps, selector.P())
-			s.AppendStages(selector.Stages()...)
- 		}
- 		s.Where(dynamodb.And(ps...))
+		s1 := s.Clone()
+		for _, p := range predicates {
+			p(s1)
+		}
+		s.Where(s1.P())
 	}
 {{- end }}
 
 {{ define "dialect/dynamodb/predicate/or" -}}
 	func(s *dynamodb.Selector) {
-		if len(predicates) == 0 {
- 			return
- 		}
-
- 		var ps []*dynamodb.Predicate
- 		for _, p := range predicates {
- 			selector := dynamodb.Select().Setwd(s.Getwd())
- 			p(selector)
-
- 			ps = append(ps, selector.P())
-			s.AppendStages(selector.Stages()...)
- 		}
- 		s.Where(dynamodb.Or(ps...))
+		s1 := s.Clone()
+		for i, p := range predicates {
+			if i > 0 {
+				s1.Or()
+			}
+			p(s1)
+		}
+		s.Where(s1.P())
 	}
 {{- end }}
 
 {{ define "dialect/dynamodb/predicate/not" -}}
 	func(s *dynamodb.Selector) {
-		selector := dynamodb.Select().Setwd(s.Getwd()).Not()
-		p(selector)
-
-		s.AppendStages(selector.Pipeline()...)
-
-		s.Where(selector.P())
+		p(s.Not())
 	}
 {{- end }}
