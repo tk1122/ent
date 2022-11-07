@@ -7,7 +7,12 @@
 package ent
 
 import (
+	"fmt"
+	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // Card is the model entity for the Card schema.
@@ -32,4 +37,62 @@ type CardEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
+}
+
+// CardItem represents item schema in MongoDB.
+type CardItem struct {
+	ID      int       `dynamodbav:"id"`
+	Expired time.Time `dynamodbav:"expired"`
+	Number  string    `dynamodbav:"number"`
+
+	UserCard *int `dynamodbav:"user_card"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*Card) item() interface{} {
+	return &CardItem{}
+}
+
+// FromItem scans the dynamodb response item into Card.
+func (c *Card) FromItem(item interface{}) error {
+	var cardItem CardItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &cardItem)
+	if err != nil {
+		return err
+	}
+	c.ID = cardItem.ID
+	c.Expired = cardItem.Expired
+	c.Number = cardItem.Number
+
+	c.user_card = cardItem.UserCard
+
+	return nil
+}
+
+// QueryOwner queries the "owner" edge of the Card entity.
+func (c *Card) QueryOwner() *UserQuery {
+	return (&CardClient{config: c.config}).QueryOwner(c)
+}
+
+// String implements the fmt.Stringer.
+func (c *Card) String() string {
+	var builder strings.Builder
+	builder.WriteString("Card(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", c.ID))
+	builder.WriteString("expired=")
+	builder.WriteString(c.Expired.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("number=")
+	builder.WriteString(c.Number)
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Cards is a parsable slice of Card.
+type Cards []*Card
+
+func (c Cards) config(cfg config) {
+	for _i := range c {
+		c[_i].config = cfg
+	}
 }

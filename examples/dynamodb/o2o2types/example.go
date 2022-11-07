@@ -13,7 +13,7 @@ import (
 	"entgo.io/ent/examples/dynamodb/o2o2types/ent"
 )
 
-func Example_O2O2Types() {
+func main() {
 	client, err := ent.Open("dynamodb", "")
 	if err != nil {
 		log.Fatalf("failed opening connection to dynamodb: %v", err)
@@ -43,7 +43,7 @@ func Do(ctx context.Context, client *ent.Client) error {
 	if err != nil {
 		return fmt.Errorf("creating user: %w", err)
 	}
-	fmt.Println("user:", a8m)
+	//fmt.Println("user:", a8m)
 	expired, err := time.Parse(time.RFC3339, "2019-12-08T15:04:05Z")
 	if err != nil {
 		return err
@@ -63,15 +63,17 @@ func Do(ctx context.Context, client *ent.Client) error {
 	//// and expects that there's only one.
 	//card2, err := a8m.QueryCard().Only(ctx)
 	//if err != nil {
-	//	return fmt.Errorf("querying card: %w", err)
+	//	return fmt.Errorf("querying card: %v", err)
 	//}
 	//fmt.Println("card:", card2)
 	//// The Card entity is able to query its owner using
 	//// its back-reference.
 	//owner, err := card2.QueryOwner().Only(ctx)
 	//if err != nil {
-	//	return fmt.Errorf("querying owner: %w", err)
+	//	return fmt.Errorf("querying owner: %v", err)
 	//}
 	//fmt.Println("owner:", owner)
+	fmt.Println("----------------------------------------")
+	fmt.Println(client.User.Query().All(ctx))
 	return nil
 }
