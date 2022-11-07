@@ -28,9 +28,7 @@ type {{ $builder }} struct {
 	limit		*int
 	offset		*int
 	unique		*bool
-	{{- if ne $.Config.Storage.Name "dynamodb" }}
 	order		[]OrderFunc
-	{{- end }}
 	fields		[]string
 	predicates 	[]predicate.{{ $.Name }}
 	{{- /* Eager loading fields. */}}
@@ -72,13 +70,11 @@ func ({{ $receiver }} *{{ $builder }}) Unique(unique bool) *{{ $builder }} {
 	return {{ $receiver }}
 }
 
-{{- if ne $.Config.Storage.Name "dynamodb" }}
 // Order adds an order step to the query.
 func ({{ $receiver }} *{{ $builder }}) Order(o ...OrderFunc) *{{ $builder }} {
 	{{ $receiver }}.order = append({{ $receiver }}.order, o...)
 	return {{ $receiver }}
 }
-{{- end }}
 
 {{/* this code has similarity with edge queries in client.tmpl */}}
 {{ range $e := $.Edges }}

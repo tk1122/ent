@@ -9,49 +9,49 @@ in the LICENSE file in the root directory of this source tree.
 {{ define "dialect/dynamodb/decode/one" }}
 {{ $receiver := $.Receiver }}
 
-{{- $docName := print $.Name "Document" }}
-// {{ $docName }} represents document schema in MongoDB.
-type {{ $docName }} struct {
-	ID   {{ $.ID.Type }}  `bson:"{{ $.ID.StorageKey }},omitempty"`
+{{- $itemName := print $.Name "Item" }}
+// {{ $itemName }} represents item schema in MongoDB.
+type {{ $itemName }} struct {
+	ID   {{ $.ID.Type }}  `dynamodbav:"{{ $.ID.StorageKey }}"`
 	{{ range $_, $f := $.Fields }}
-		{{- $f.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }} `bson:"{{ $f.StorageKey }},omitempty"`
+		{{- $f.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }} `dynamodbav:"{{ $f.StorageKey }}"`
 	{{ end }}
 	{{- range $fk := $.UnexportedForeignKeys }}
 		{{- $f := $fk.Field }}
-		{{ $f.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }} `bson:"{{ $f.StorageKey }},omitempty"`
+		{{ $f.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }} `dynamodbav:"{{ $f.StorageKey }}"`
 	{{- end }}
 
 	{{- with $.NumM2M }}
 		{{ range $e := $.Edges }}
 			{{- if $e.M2M }}
-				{{ $e.Key | pascal }} []{{ $e.Type.ID.Type }} `bson:"{{ $e.Key }},omitempty"`
+				{{ $e.Key | pascal }} []{{ $e.Type.ID.Type }} `dynamodbav:"{{ $e.Key }}"`
 			{{- end }}
 		{{- end }}
 	{{- end }}
 }
 
-// document returns the object for receiving document from dynamodb.
-func (*{{ $.Name }}) document() interface{} {
-	return &{{ $docName }}{}
+// item returns the object for receiving item from dynamodb.
+func (*{{ $.Name }}) item() interface{} {
+	return &{{ $itemName }}{}
 }
 
-// FromDocument scans the dynamodb response document into {{ $.Name }}.
-func ({{ $receiver }} *{{ $.Name }}) FromDocument(idoc interface{}) error {
-	doc := idoc.(*{{ $docName }})
-	{{ $receiver }}.ID = doc.ID
+// FromItem scans the dynamodb response item into {{ $.Name }}.
+func ({{ $receiver }} *{{ $.Name }}) FromItem(item interface{}) error {
+	userItem:= item.(*{{ $itemName }})
+	{{ $receiver }}.ID = userItem.ID
 	{{ range $_, $f := $.Fields }}
-		{{- $receiver }}.{{ $f.StructField }} = doc.{{ $f.StructField }}
+		{{- $receiver }}.{{ $f.StructField }} = userItem.{{ $f.StructField }}
 	{{ end -}}
 
 	{{- range $fk := $.UnexportedForeignKeys }}
 		{{- $f := $fk.Field }}
-		{{ $receiver }}.{{ $f.Name }} = doc.{{ $f.StructField }}
+		{{ $receiver }}.{{ $f.Name }} = userItem.{{ $f.StructField }}
 	{{- end }}
 
 	{{- with $.NumM2M }}
 		{{ range $e := $.Edges }}
 			{{- if $e.M2M }}
-				{{ $receiver }}.{{ $e.Key }} = doc.{{ $e.Key | pascal }}
+				{{ $receiver }}.{{ $e.Key }} = userItem.{{ $e.Key | pascal }}
 			{{- end }}
 		{{- end }}
 	{{- end }}
