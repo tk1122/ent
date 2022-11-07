@@ -5,6 +5,10 @@
 package dynamodb
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -48,6 +52,7 @@ const (
 	PutItemOperation     = "PutItem"
 	UpdateItemOperation  = "UpdateItem"
 	BatchWriteOperation  = "BatchWrite"
+	ScanOperation        = "ScanOperation"
 )
 
 type (
@@ -215,5 +220,135 @@ func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) *BatchWriteIte
 func (b *BatchWriteItemBuilder) Op() (string, interface{}) {
 	return BatchWriteOperation, &BatchWriteItemArgs{
 		operationMap: b.requestMap,
+	}
+}
+
+// Selector is a builder for the `SELECT` statement.
+type Selector struct {
+	ctx        context.Context
+	table      string
+	query      *Predicate
+	expBuilder expression.Builder
+	exp        expression.Expression
+	not        bool
+	or         bool
+	orderAsc   bool
+	errs       []error // errors that added during the selection construction.
+}
+
+// ordering direction aliases.
+const (
+	Asc  = true
+	Desc = false
+)
+
+func Select() *Selector {
+	return &Selector{
+		expBuilder: expression.NewBuilder(),
+		exp:        expression.Expression{},
+	}
+}
+
+// From sets collection name of the selector.
+func (s *Selector) From(table string) *Selector {
+	s.table = table
+	return s
+}
+
+// Where sets or appends the given predicate to the selector.
+func (s *Selector) Where(p *Predicate) *Selector {
+	if s.not {
+		p = Not(p)
+	}
+	cond := Clone(p)
+	switch {
+	case s.query == nil:
+		s.query = cond
+	default:
+		s.query = And(cond, s.query)
+	}
+	return s
+}
+
+// Clone returns a duplicate of the selector, including all associated steps. It can be
+// used to prepare common SELECT statements and use them differently after the clone is made.
+func (s *Selector) Clone() *Selector {
+	return &Selector{
+		table: s.table,
+		query: s.query.clone(),
+		errs:  append(s.errs[:0:0], s.errs...),
+	}
+}
+
+// P returns the predicate of a selector.
+func (s *Selector) P() *Predicate {
+	return s.query
+}
+
+// Or sets the next coming predicate with OR operator (disjunction).
+func (s *Selector) Or() *Selector {
+	s.or = true
+	return s
+}
+
+// Not sets the next coming predicate with not.
+func (s *Selector) Not() *Selector {
+	s.not = true
+	return s
+}
+
+// OrderBy appends the orders to query statement.
+func (s *Selector) OrderBy(asc bool) *Selector {
+	s.orderAsc = asc
+	return s
+}
+
+// Select adds the keys selection of the selector.
+func (s *Selector) Select(keys ...string) *Selector {
+	if len(keys) == 0 {
+		return s
+	}
+	proj := expression.NamesList(expression.Name(keys[0]))
+	for _, k := range keys[1:] {
+		proj = proj.AddNames(expression.Name(k))
+	}
+	s.expBuilder = s.expBuilder.WithProjection(proj)
+	return s
+}
+
+// BuildExpressions builds and validates the expression.
+func (s *Selector) BuildExpressions() *Selector {
+	var err error
+	s.exp, err = s.expBuilder.Build()
+	if err != nil {
+		s.errs = append(s.errs, err)
+	}
+	return s
+}
+
+// Err returns a concatenated error of all errors encountered during
+// the selection-building, or were added manually by calling AddError.
+func (s *Selector) Err() error {
+	if s.errs == nil {
+		return nil
+	}
+	br := strings.Builder{}
+	for i := range s.errs {
+		if i > 0 {
+			br.WriteString("; ")
+		}
+		br.WriteString(s.errs[i].Error())
+	}
+	return fmt.Errorf(br.String())
+}
+
+// Op retutns name and args of Scan operation.
+func (s *Selector) Op() (string, interface{}) {
+	return ScanOperation, &dynamodb.ScanInput{
+		TableName:                 aws.String(s.table),
+		ProjectionExpression:      s.exp.Projection(),
+		FilterExpression:          s.exp.Filter(),
+		ExpressionAttributeNames:  s.exp.Names(),
+		ExpressionAttributeValues: s.exp.Values(),
 	}
 }
