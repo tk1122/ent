@@ -1590,6 +1590,9 @@ func (f *Field) Ops() []Op {
 		var supportedOp []Op
 		nonSupportedOps := f.cfg.Storage.NonSupportedOps(f)
 		for _, op := range ops {
+			if len(nonSupportedOps) == 0 {
+				supportedOp = append(supportedOp, op)
+			}
 			for _, nonSupportedOp := range nonSupportedOps {
 				if op != nonSupportedOp {
 					supportedOp = append(supportedOp, op)
