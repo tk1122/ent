@@ -37,21 +37,26 @@ func (*{{ $.Name }}) item() interface{} {
 
 // FromItem scans the dynamodb response item into {{ $.Name }}.
 func ({{ $receiver }} *{{ $.Name }}) FromItem(item interface{}) error {
-	userItem:= item.(*{{ $itemName }})
-	{{ $receiver }}.ID = userItem.ID
+	{{- $itemVar := print $.Name "Item" | snake | camel }}
+	var {{ $itemVar }} {{ $itemName }}
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &{{ $itemVar }})
+	if err != nil {
+		return err
+	}
+	{{ $receiver }}.ID = {{ $itemVar }}.ID
 	{{ range $_, $f := $.Fields }}
-		{{- $receiver }}.{{ $f.StructField }} = userItem.{{ $f.StructField }}
+		{{- $receiver }}.{{ $f.StructField }} = {{ $itemVar }}.{{ $f.StructField }}
 	{{ end -}}
 
 	{{- range $fk := $.UnexportedForeignKeys }}
 		{{- $f := $fk.Field }}
-		{{ $receiver }}.{{ $f.Name }} = userItem.{{ $f.StructField }}
+		{{ $receiver }}.{{ $f.Name }} = {{ $itemVar }}.{{ $f.StructField }}
 	{{- end }}
 
 	{{- with $.NumM2M }}
 		{{ range $e := $.Edges }}
 			{{- if $e.M2M }}
-				{{ $receiver }}.{{ $e.Key }} = userItem.{{ $e.Key | pascal }}
+				{{ $receiver }}.{{ $e.Key }} = {{ $itemVar }}.{{ $e.Key | pascal }}
 			{{- end }}
 		{{- end }}
 	{{- end }}

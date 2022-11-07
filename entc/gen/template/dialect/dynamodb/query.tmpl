@@ -46,7 +46,7 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbAll(ctx context.Context) ([]*{{ $
 	{{- end }}
 
 	_spec.Item = _node.item
-	_spec.Assign = func(items ...interface{}) error {
+	_spec.Assign = func(items []map[string]types.AttributeValue) error {
 		for _, item := range items {
 			node := &{{ $.Name }}{}
 			if err := node.FromItem(item); err != nil {
