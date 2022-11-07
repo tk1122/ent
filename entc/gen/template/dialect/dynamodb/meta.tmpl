@@ -26,6 +26,34 @@ in the LICENSE file in the root directory of this source tree.
 {{ end }}
 
 {{ define "dialect/dynamodb/meta/variables" }}
+	// Keys holds all DynamoDB keys for {{ lower $.Name }} fields.
+	var Keys = []string{
+		{{ $.ID.Constant }},
+		{{- range $f := $.Fields }}
+			{{ $f.Constant }},
+		{{- end }}
+		{{- with $.ForeignKeys }}
+			{{- range $fk := . }}
+				"{{ $fk.Field.Name }}",
+			{{- end }}
+		{{- end }}
+		{{- with $.NumM2M }}
+			{{- range $e := $.Edges }}
+				{{- if $e.M2M }}
+					"{{ $e.Key }}",
+				{{- end }}
+			{{- end }}
+		{{- end }}
+	}
+	{{/* if any of the edges owns a foreign-key */}}
+	{{ with $.ForeignKeys }}
+		// ForeignKeys holds the Mongo foreign-keys that are owned by the {{ $.Name }} type.
+		var ForeignKeys = []string{
+			{{- range $fk := . }}
+				"{{ $fk.Field.Name }}",
+			{{- end }}
+		}
+	{{ end }}
 	{{ with $.NumM2M }}
 		var (
 			{{- range $_, $e := $.Edges }}
@@ -37,4 +65,23 @@ in the LICENSE file in the root directory of this source tree.
 			{{- end }}
 		)
 	{{ end }}
+{{ end }}
+
+{{ define "dialect/dynamodb/meta/functions" }}
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	{{- with $.UnexportedForeignKeys }}
+		for i := range ForeignKeys {
+			if key == ForeignKeys[i] {
+				return true
+			}
+		}
+	{{- end }}
+	return false
+}
 {{ end }}

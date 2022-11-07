@@ -83,7 +83,7 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbCount(ctx context.Context) (int, 
 func ({{ $receiver }} *{{ $builder }}) dynamodbExist(ctx context.Context) (bool, error) {
 	n, err := {{ $receiver }}.dynamodbCount(ctx)
 	if err != nil {
-		return false, ferrs.Errorf("{{ $pkg }}: check existence: %v", err)
+		return false, fmt.Errorf("{{ $pkg }}: check existence: %v", err)
 	}
 	return n > 0, nil
 }
@@ -91,7 +91,7 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbExist(ctx context.Context) (bool,
 func ({{ $receiver }} *{{ $builder }}) querySpec() *dynamodbgraph.QuerySpec {
 	_spec := &dynamodbgraph.QuerySpec{
 		Node: &dynamodbgraph.NodeSpec{
-			Collection: {{ $.Package }}.Collection,
+			Table: {{ $.Package }}.Table,
 			Keys: {{ $.Package }}.Keys,
 			ID: &dynamodbgraph.FieldSpec{
 				Type: field.{{ $.ID.Type.ConstName }},
@@ -124,7 +124,7 @@ func ({{ $receiver }} *{{ $builder }}) querySpec() *dynamodbgraph.QuerySpec {
 }
 
 func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynamodb.Selector {
-	c1 := {{ $.Package }}.Collection
+	c1 := {{ $.Package }}.Table
 	selector := dynamodb.Select({{ $.Package }}.Keys...).From(c1)
 	if {{ $receiver }}.dynamodb != nil {
 		selector = {{ $receiver }}.dynamodb
@@ -156,8 +156,8 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 	{{- $receiver := $.Scope.Receiver }}
 	selector := {{ $receiver }}.dynamodbQuery(ctx)
 	step := dynamodbgraph.NewStep(
-		dynamodbgraph.From({{ $n.Package }}.Collection, {{ $n.Package }}.{{ $n.ID.Constant }}, selector),
-		dynamodbgraph.To({{ $e.Type.Package }}.Collection, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, {{ $e.Type.Package }}.Keys),
+		dynamodbgraph.From({{ $n.Package }}.Table, {{ $n.Package }}.{{ $n.ID.Constant }}, selector),
+		dynamodbgraph.To({{ $e.Type.Package }}.Table, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, {{ $e.Type.Package }}.Keys),
 		dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.AttributeConstant }},
 			{{- if $e.M2M -}}
 				{{ $n.Package }}.{{ $e.AttributeConstant }}...
@@ -216,7 +216,7 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 			for _, n := range neighbors {
 				nodes, ok := edges[n.ID]
 				if !ok {
-					return nil, ferrs.Errorf(`unexpected "{{ $e.Name }}" node returned %v`, n.ID)
+					return nil, fmt.Errorf(`unexpected "{{ $e.Name }}" node returned %v`, n.ID)
 				}
 				for i := range nodes {
 					nodes[i].Edges.{{ $e.StructField }} = append(nodes[i].Edges.{{ $e.StructField }}, n)
@@ -246,7 +246,7 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 			for _, n := range neighbors {
 				nodes, ok := nodeids[n.ID]
 				if !ok {
-					return nil, ferrs.Errorf(`unexpected foreign-key "{{ $fk.StructField }}" returned %v`, n.ID)
+					return nil, fmt.Errorf(`unexpected foreign-key "{{ $fk.StructField }}" returned %v`, n.ID)
 				}
 				for i := range nodes {
 					nodes[i].Edges.{{ $e.StructField }} = n
@@ -275,12 +275,12 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 				fk := n.{{ $fk.StructField }}
 				{{- if $fk.Field.Nillable }}
 				if fk == nil {
-					return nil, ferrs.Errorf(`foreign-key "{{ $fk.StructField }}" is nil for node %v`, n.ID)
+					return nil, fmt.Errorf(`foreign-key "{{ $fk.StructField }}" is nil for node %v`, n.ID)
 				}
 				{{- end }}
 				node, ok := nodeids[{{ if $fk.Field.Nillable }}*{{ end }}fk]
 				if !ok {
-					return nil, ferrs.Errorf(`unexpected foreign-key "{{ $fk.StructField }}" returned %v for node %v`, {{ if $fk.Field.Nillable }}*{{ end }}fk, n.ID)
+					return nil, fmt.Errorf(`unexpected foreign-key "{{ $fk.StructField }}" returned %v for node %v`, {{ if $fk.Field.Nillable }}*{{ end }}fk, n.ID)
 				}
 				node.Edges.{{ $e.StructField }} = {{ if $e.Unique }}n{{ else }}append(node.Edges.{{ $e.StructField }}, n){{ end }}
 			}
@@ -304,7 +304,7 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 	{{- $receiver := $.Scope.Receiver }}
 	for _, f := range {{ $receiver }}.fields {
 		if !{{ $.Package }}.ValidKey(f) {
-			return &ValidationError{Name: f, err: ferrs.Errorf("{{ $pkg }}: invalid field %q for query", f)}
+			return &ValidationError{Name: f, err: fmt.Errorf("{{ $pkg }}: invalid field %q for query", f)}
 		}
 	}
 {{- end }}

@@ -38,12 +38,12 @@ const (
 {{ if hasTemplate $tmpl }}
 	{{ xtemplate $tmpl $ }}
 {{ end }}
-{{- if ne $.Config.Storage.Name "dynamodb" }}
 
 {{ $tmpl = printf "dialect/%s/meta/functions" $.Storage }}
 {{ if hasTemplate $tmpl }}
 	{{ xtemplate $tmpl $ }}
 {{ end }}
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 
 {{/* Has at least one field (not enum) with default value */}}
 {{ $fields := $.Fields }}{{ if $.HasOneFieldID }}{{ if $.ID.UserDefined }}{{ $fields = append $fields $.ID }}{{ end }}{{ end }}

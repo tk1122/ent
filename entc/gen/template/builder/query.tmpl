@@ -368,10 +368,7 @@ func ({{ $receiver }} *{{ $builder }}) GroupBy(field string, fields ...string) *
 {{- end }}
 func ({{ $receiver }} *{{ $builder }}) Select(fields ...string) *{{ $selectBuilder }} {
 	{{ $receiver }}.fields = append({{ $receiver }}.fields, fields...)
-	selbuild := &{{ $selectBuilder }}{ {{ $builder }}: {{ $receiver }} }
-	selbuild.label = {{ $.Package }}.Label
-	selbuild.flds, selbuild.scan = &{{ $receiver }}.fields, selbuild.Scan
-	return selbuild
+	return &{{ $selectBuilder }}{ {{ $builder }}: {{ $receiver }} }
 }
 
 func ({{ $receiver }} *{{ $builder }}) prepareQuery(ctx context.Context) error {
@@ -457,7 +454,9 @@ func ({{ $groupReceiver }} *{{ $groupBuilder }}) Scan(ctx context.Context, v any
 // {{ $selectBuilder }} is the builder for selecting fields of {{ pascal $.Name }} entities.
 type {{ $selectBuilder }} struct {
 	*{{ $builder }}
+	{{- if ne $.Config.Storage.Name "dynamodb" }}
 	selector
+	{{- end }}
 	// intermediate query (i.e. traversal path).
 	{{ $.Storage }} {{ $.Storage.Builder }}
 }
