@@ -281,9 +281,7 @@ func ({{ $receiver }} *{{ $builder }}) Clone() *{{ $builder }} {
 		config: 	{{ $receiver }}.config,
 		limit: 		{{ $receiver }}.limit,
 		offset: 	{{ $receiver }}.offset,
-		{{- if ne $.Config.Storage.Name "dynamodb" }}
 		order: 		append([]OrderFunc{}, {{ $receiver }}.order...),
-		{{- end }}
 		predicates: append([]predicate.{{ $.Name }}{}, {{ $receiver }}.predicates...),
 		{{- range $e := $.Edges }}
 			{{ $e.EagerLoadField }}: {{ $receiver }}.{{ $e.EagerLoadField }}.Clone(),
