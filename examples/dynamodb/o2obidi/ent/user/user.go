@@ -24,3 +24,31 @@ const (
 	// SpouseAttribute is the table column denoting the spouse relation/edge.
 	SpouseAttribute = "user_spouse"
 )
+
+// Keys holds all DynamoDB keys for user fields.
+var Keys = []string{
+	FieldID,
+	FieldAge,
+	FieldName,
+	"user_spouse",
+}
+
+// ForeignKeys holds the Mongo foreign-keys that are owned by the User type.
+var ForeignKeys = []string{
+	"user_spouse",
+}
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	for i := range ForeignKeys {
+		if key == ForeignKeys[i] {
+			return true
+		}
+	}
+	return false
+}

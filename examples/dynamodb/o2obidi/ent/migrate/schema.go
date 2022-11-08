@@ -23,8 +23,7 @@ var (
 		Name:       "users",
 		Attributes: UsersAttributes,
 		PrimaryKey: []*schema.KeySchema{
-			{AttributeName: "name", KeyType: schema.KeyType("HASH")},
-			{AttributeName: "age", KeyType: schema.KeyType("RANGE")},
+			{AttributeName: "id", KeyType: schema.KeyType("HASH")},
 		},
 	}
 	// Tables holds all the tables in the schema.

@@ -11,8 +11,8 @@ import (
 	"errors"
 	"fmt"
 
+	"entgo.io/ent/examples/dynamodb/o2obidi/ent/predicate"
 	"entgo.io/ent/examples/dynamodb/o2obidi/ent/user"
-	"entgo.io/ent/examples/start/ent/predicate"
 
 	"entgo.io/ent"
 )
