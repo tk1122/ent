@@ -367,7 +367,7 @@ func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Select
 	case r == M2M && !s.Edge.Inverse:
 
 	case r == M2O || (r == O2O && s.Edge.Inverse):
-
+		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
 	case r == O2M || (r == O2O && !s.Edge.Inverse):
 		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
 	}

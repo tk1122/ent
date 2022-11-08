@@ -28,3 +28,30 @@ const (
 	// ChildrenAttribute is the table column denoting the children relation/edge.
 	ChildrenAttribute = "node_children"
 )
+
+// Keys holds all DynamoDB keys for node fields.
+var Keys = []string{
+	FieldID,
+	FieldValue,
+	"node_children",
+}
+
+// ForeignKeys holds the Mongo foreign-keys that are owned by the Node type.
+var ForeignKeys = []string{
+	"node_children",
+}
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	for i := range ForeignKeys {
+		if key == ForeignKeys[i] {
+			return true
+		}
+	}
+	return false
+}
