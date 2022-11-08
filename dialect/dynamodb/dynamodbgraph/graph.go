@@ -360,54 +360,30 @@ func HasNeighbors(q *dynamodb.Selector, s *Step) {
 
 // HasNeighborsWith applies on the given Selector a neighbors check.
 // The given predicate applies its filtering on the selector.
-func HasNeighborsWith(q *dynamodb.Selector, s *Step, pred func(*dynamodb.Selector)) {
-	//edgeField := fmt.Sprintf("%s%s", s.Edge.Collection, must.String(rand.String(5)))
-	//cwd := q.Getwd()
-	//
-	//var lookup *mongo.LookupBuilder
-	//
-	//switch r := s.Edge.Rel; {
-	//case r == M2M && s.Edge.Inverse:
-	//	lookup = mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(keypath.Join(cwd, s.Edge.Keys[0])).
-	//		ForeignField(s.From.Key).
-	//		As(edgeField)
-	//
-	//case r == M2M && !s.Edge.Inverse:
-	//	lookup = mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(keypath.Join(cwd, s.From.Key)).
-	//		ForeignField(s.Edge.Keys[0]).
-	//		As(edgeField)
-	//
-	//case r == M2O || (r == O2O && s.Edge.Inverse):
-	//	lookup = mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(keypath.Join(cwd, s.Edge.Keys[0])).
-	//		ForeignField(s.To.Key).
-	//		As(edgeField)
-	//
-	//case r == O2M || (r == O2O && !s.Edge.Inverse):
-	//	lookup = mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(keypath.Join(cwd, s.From.Key)).
-	//		ForeignField(s.Edge.Keys[0]).
-	//		As(edgeField)
-	//}
-	//
-	//q.AppendStages(
-	//	lookup.Stage(),
-	//	mongo.Unwind().Path(edgeField).PreserveNullAndEmptyArrays(true).Stage(),
-	//)
-	//
-	//q.Setwd(keypath.Join(cwd, edgeField))
-	//pred(q)
-	//q.Setwd(cwd)
-	//
-	//q.Regroup()
-	//
-	//q.Where(mongo.Exist(edgeField, true))
+func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Selector)) {
+	pred(q)
+	switch r := s.Edge.Rel; {
+	case r == M2M && s.Edge.Inverse:
+
+	case r == M2M && !s.Edge.Inverse:
+
+	case r == M2O || (r == O2O && s.Edge.Inverse):
+
+	case r == O2M || (r == O2O && !s.Edge.Inverse):
+		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
+		if pred != nil {
+			iq := dynamodb.Select(s.Edge).
+				From(s.Edge.Table).
+				Where(pred)
+			op, args := iq.Op()
+			var output sdk.ScanOutput
+			if err := drv.Query(ctx, op, args, &output); err != nil {
+				q.AddError(err)
+				return q
+
+			}
+		}
+	}
 }
 
 // Neighbors returns a Selector for evaluating the path-step
@@ -609,18 +585,14 @@ func CountNodes(ctx context.Context, drv dialect.Driver, spec *QuerySpec) (int, 
 }
 
 func (q *query) count(ctx context.Context, drv dialect.Driver) (int, error) {
-	//var total int64
-	//selector, err := q.selector()
-	//if err != nil {
-	//	return 0, err
-	//}
-	//selector.Count()
-	//
-	//op, args := selector.Op()
-	//if err := drv.Query(ctx, op, args, &total); err != nil {
-	//	return 0, err
-	//}
-	//
-	//return int(total), nil
-	return 0, nil
+	selector, err := q.selector()
+	if err != nil {
+		return 0, err
+	}
+	op, args := selector.Op()
+	var output sdk.ScanOutput
+	if err := drv.Query(ctx, op, args, &output); err != nil {
+		return 0, err
+	}
+	return int(output.Count), nil
 }

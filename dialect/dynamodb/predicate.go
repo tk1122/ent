@@ -84,6 +84,18 @@ func (p *Predicate) NotExist(key string) *Predicate {
 	})
 }
 
+// Exist returns the `expression.Name(key).AttributeExists()` predicate.
+func Exist(col string) *Predicate {
+	return P().Exist(col)
+}
+
+// Exist appends the `expression.Name(key).AttributeExists()` predicate.
+func (p *Predicate) Exist(key string) *Predicate {
+	return p.Append(func() expression.ConditionBuilder {
+		return expression.Name(key).AttributeExists()
+	})
+}
+
 // Not reverses the logic of the predicate.
 //
 //	Not(Or(EQ("name", "foo"), EQ("name", "bar")))
