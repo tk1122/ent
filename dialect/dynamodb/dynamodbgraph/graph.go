@@ -413,58 +413,41 @@ func HasNeighborsWith(q *dynamodb.Selector, s *Step, pred func(*dynamodb.Selecto
 // Neighbors returns a Selector for evaluating the path-step
 // and getting the neighbors of one vertex.
 func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
-	//ctx := context.TODO()
-	//switch r := s.Edge.Rel; {
-	//case r == M2M && (s.Edge.Inverse || s.Edge.Bidi):
-	//	q = dynamodb.Select().
-	//		From(s.Edge.Collection).
-	//		Where(mongo.Nop(s.Edge.Keys[1], s.From.V))
-	//
-	//case r == M2M && !s.Edge.Inverse:
-	//	q = dynamodb.Select().
-	//		From(s.Edge.Collection).
-	//		Where(mongo.Nop(s.Edge.Keys[0], s.From.V))
-	//
-	//case r == M2O || (r == O2O && s.Edge.Inverse):
-	//	q = dynamodb.Select().
-	//		From(s.To.Collection)
-	//
-	//	iq := dynamodb.Select(s.Edge.Keys[0]).
-	//		From(s.Edge.Collection).
-	//		Where(mongo.EQ(s.From.Key, s.From.V))
-	//	op, args := iq.Op()
-	//
-	//	var cur *dynamodb.Cursor
-	//	if err := drv.Query(ctx, op, args, &cur); err != nil {
-	//		q.AddError(err)
-	//		return q
-	//	}
-	//
-	//	var res bson.M
-	//	if cur.Next(ctx) {
-	//		if err := cur.Decode(&res); err != nil {
-	//			q.AddError(err)
-	//			return
-	//		}
-	//	}
-	//	if err := cur.Err(); err != nil {
-	//		q.AddError(err)
-	//		return q
-	//	}
-	//	if err := cur.Close(ctx); err != nil {
-	//		q.AddError(err)
-	//		return q
-	//	}
-	//
-	//	q.Where(mongo.EQ(s.To.Key, res[s.Edge.Keys[0]]))
-	//
-	//case r == O2M || (r == O2O && !s.Edge.Inverse):
-	//	q = mongo.Select().
-	//		From(s.Edge.Collection).
-	//		Where(mongo.EQ(s.Edge.Keys[0], s.From.V))
-	//}
-	//return q
-	return nil
+	ctx := context.TODO()
+	switch r := s.Edge.Rel; {
+	case r == M2M && (s.Edge.Inverse || s.Edge.Bidi):
+		q = dynamodb.Select().
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V))
+
+	case r == M2M && !s.Edge.Inverse:
+		q = dynamodb.Select().
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V))
+
+	case r == M2O || (r == O2O && s.Edge.Inverse):
+		q = dynamodb.Select().
+			From(s.To.Table)
+
+		iq := dynamodb.Select(s.Edge.Attributes[0]).
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.From.Attribute, s.From.V))
+		op, args := iq.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+
+		}
+
+		q.Where(dynamodb.EQ(s.To.Attribute, output.Items[0][s.Edge.Attributes[0]]))
+
+	case r == O2M || (r == O2O && !s.Edge.Inverse):
+		q = dynamodb.Select().
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V))
+	}
+	return q
 }
 
 // SetNeighbors returns a Selector for evaluating the path-step

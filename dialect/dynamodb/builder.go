@@ -232,7 +232,7 @@ type Selector struct {
 	exp        expression.Expression
 	not        bool
 	or         bool
-	orderAsc   bool
+	orderDesc  bool
 	errs       []error // errors that added during the selection construction.
 }
 
@@ -242,11 +242,11 @@ const (
 	Desc = false
 )
 
-func Select() *Selector {
-	return &Selector{
+func Select(keys ...string) *Selector {
+	return (&Selector{
 		expBuilder: expression.NewBuilder(),
 		exp:        expression.Expression{},
-	}
+	}).Select(keys...)
 }
 
 // From sets collection name of the selector.
@@ -267,6 +267,7 @@ func (s *Selector) Where(p *Predicate) *Selector {
 	default:
 		s.query = And(cond, s.query)
 	}
+	s.expBuilder = s.expBuilder.WithFilter(s.query.Query())
 	return s
 }
 
@@ -299,7 +300,7 @@ func (s *Selector) Not() *Selector {
 
 // OrderBy appends the orders to query statement.
 func (s *Selector) OrderBy(asc bool) *Selector {
-	s.orderAsc = asc
+	s.orderDesc = !asc
 	return s
 }
 
@@ -340,6 +341,12 @@ func (s *Selector) Err() error {
 		br.WriteString(s.errs[i].Error())
 	}
 	return fmt.Errorf(br.String())
+}
+
+// AddError appends an error to the selector errors.
+func (s *Selector) AddError(err error) *Selector {
+	s.errs = append(s.errs, err)
+	return s
 }
 
 // Op retutns name and args of Scan operation.
