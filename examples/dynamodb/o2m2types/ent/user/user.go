@@ -27,3 +27,20 @@ const (
 	// PetsAttribute is the table column denoting the pets relation/edge.
 	PetsAttribute = "user_pets"
 )
+
+// Keys holds all DynamoDB keys for user fields.
+var Keys = []string{
+	FieldID,
+	FieldAge,
+	FieldName,
+}
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	return false
+}

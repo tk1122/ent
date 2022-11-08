@@ -61,19 +61,19 @@ func Do(ctx context.Context, client *ent.Client) error {
 		return fmt.Errorf("creating user: %w", err)
 	}
 	fmt.Println("User created:", a8m)
-	// Output: User(id=1, age=30, name=a8m)
+	//Output: User(id=1, age=30, name=a8m)
 
-	//// Query the owner. Unlike `Only`, `OnlyX` panics if an error occurs.
-	//owner := pedro.QueryOwner().OnlyX(ctx)
-	//fmt.Println(owner.Name)
-	//// Output: a8m
-	//
-	//// Traverse the sub-graph. Unlike `Count`, `CountX` panics if an error occurs.
-	//count := pedro.
-	//	QueryOwner(). // a8m
-	//	QueryPets().  // pedro, lola
-	//	CountX(ctx)   // count
-	//fmt.Println(count)
-	//// Output: 2
+	// Query the owner. Unlike `Only`, `OnlyX` panics if an error occurs.
+	owner := pedro.QueryOwner().OnlyX(ctx)
+	fmt.Println(owner.Name)
+	// Output: a8m
+
+	// Traverse the sub-graph. Unlike `Count`, `CountX` panics if an error occurs.
+	count := pedro.
+		QueryOwner(). // a8m
+		QueryPets(). // pedro, lola
+		CountX(ctx) // count
+	fmt.Println(count)
+	// Output: 2
 	return nil
 }
