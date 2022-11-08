@@ -49,12 +49,12 @@ func Do(ctx context.Context, client *ent.Client) error {
 		}
 	}
 
-	//// Loop over the list and print it. `FirstX` panics if an error occur.
-	//for curr = head; curr != nil; curr = curr.QueryNext().FirstX(ctx) {
-	//	fmt.Printf(" %d", curr.Value)
-	//}
-	//// Output: 1 2 3 4 5
-	//
+	// Loop over the list and print it. `FirstX` panics if an error occur.
+	for curr = head; curr != nil; curr = curr.QueryNext().FirstX(ctx) {
+		fmt.Printf(" %d", curr.Value)
+	}
+	// Output: 1 2 3 4 5
+
 	//// Make the linked-list circular:
 	//// The tail of the list, has no "next".
 	//tail, err := client.Node.

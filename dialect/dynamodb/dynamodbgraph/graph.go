@@ -361,7 +361,6 @@ func HasNeighbors(q *dynamodb.Selector, s *Step) {
 // HasNeighborsWith applies on the given Selector a neighbors check.
 // The given predicate applies its filtering on the selector.
 func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Selector)) {
-	pred(q)
 	switch r := s.Edge.Rel; {
 	case r == M2M && s.Edge.Inverse:
 
@@ -371,18 +370,6 @@ func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Select
 
 	case r == O2M || (r == O2O && !s.Edge.Inverse):
 		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
-		if pred != nil {
-			iq := dynamodb.Select(s.Edge).
-				From(s.Edge.Table).
-				Where(pred)
-			op, args := iq.Op()
-			var output sdk.ScanOutput
-			if err := drv.Query(ctx, op, args, &output); err != nil {
-				q.AddError(err)
-				return q
-
-			}
-		}
 	}
 }
 

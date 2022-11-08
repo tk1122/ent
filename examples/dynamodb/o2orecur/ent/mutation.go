@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"entgo.io/ent/examples/dynamodb/o2orecur/ent/node"
-	"entgo.io/ent/examples/o2mrecur/ent/predicate"
+	"entgo.io/ent/examples/dynamodb/o2orecur/ent/predicate"
 
 	"entgo.io/ent"
 )
