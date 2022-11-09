@@ -57,7 +57,16 @@ func In(key string, vals ...interface{}) *Predicate {
 // In appends the `expression.Name(key).In(expression.Value(vals))` predicate.
 func (p *Predicate) In(key string, vals ...interface{}) *Predicate {
 	return p.Append(func() expression.ConditionBuilder {
-		return expression.Name(key).In(expression.Value(vals))
+		exp := expression.Name(key).In(expression.Value(vals[0]))
+		if len(vals) == 1 {
+			return exp
+		}
+		var exValues []expression.OperandBuilder
+		for _, val := range vals[1:] {
+			exValues = append(exValues, expression.Value(val))
+		}
+		exp = expression.Name(key).In(expression.Value(vals[0]), exValues...)
+		return exp
 	})
 }
 

@@ -245,7 +245,6 @@ const (
 func Select(keys ...string) *Selector {
 	return (&Selector{
 		expBuilder: expression.NewBuilder(),
-		exp:        expression.Expression{},
 	}).Select(keys...)
 }
 

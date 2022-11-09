@@ -379,14 +379,42 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 	ctx := context.TODO()
 	switch r := s.Edge.Rel; {
 	case r == M2M && (s.Edge.Inverse || s.Edge.Bidi):
-		q = dynamodb.Select().
+		joinTableQuery := dynamodb.Select().
 			From(s.Edge.Table).
-			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V))
+			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V)).
+			BuildExpressions()
+		op, args := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		var ids []interface{}
+		for _, i := range output.Items {
+			ids = append(ids, i[s.Edge.Attributes[0]])
+		}
+		q = dynamodb.Select().
+			From(s.To.Table).
+			Where(dynamodb.In(s.To.Attribute, ids...))
 
 	case r == M2M && !s.Edge.Inverse:
-		q = dynamodb.Select().
+		joinTableQuery := dynamodb.Select().
 			From(s.Edge.Table).
-			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V))
+			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V)).
+			BuildExpressions()
+		op, args := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		var ids []interface{}
+		for _, i := range output.Items {
+			ids = append(ids, i[s.Edge.Attributes[1]])
+		}
+		q = dynamodb.Select().
+			From(s.To.Table).
+			Where(dynamodb.In(s.To.Attribute, ids...))
 
 	case r == M2O || (r == O2O && s.Edge.Inverse):
 		q = dynamodb.Select().
@@ -394,13 +422,13 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 
 		iq := dynamodb.Select(s.Edge.Attributes[0]).
 			From(s.Edge.Table).
-			Where(dynamodb.EQ(s.From.Attribute, s.From.V))
+			Where(dynamodb.EQ(s.From.Attribute, s.From.V)).
+			BuildExpressions()
 		op, args := iq.Op()
 		var output sdk.ScanOutput
 		if err := drv.Query(ctx, op, args, &output); err != nil {
 			q.AddError(err)
 			return q
-
 		}
 
 		q.Where(dynamodb.EQ(s.To.Attribute, output.Items[0][s.Edge.Attributes[0]]))
@@ -554,7 +582,6 @@ func (q *query) selector() (*dynamodb.Selector, error) {
 	if q.From != nil {
 		selector = q.From
 	}
-	selector.Select(q.Node.Keys...)
 	if pred := q.Predicate; pred != nil {
 		pred(selector)
 	}
