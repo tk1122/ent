@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/m2m2types/ent"
@@ -42,14 +43,15 @@ func Do(ctx context.Context, client *ent.Client) error {
 		SetID(2).
 		SetName("GitLab").
 		SaveX(ctx)
-	_ = client.User.
+
+	a8m := client.User.
 		Create().
 		SetID(1).
 		SetAge(30).
 		SetName("a8m").
 		AddGroups(hub, lab).
 		SaveX(ctx)
-	_ = client.User.
+	nati := client.User.
 		Create().
 		SetID(2).
 		SetAge(28).
@@ -57,25 +59,25 @@ func Do(ctx context.Context, client *ent.Client) error {
 		AddGroups(hub).
 		SaveX(ctx)
 
-	//// Query the edges.
-	//groups, err := a8m.
-	//	QueryGroups().
-	//	All(ctx)
-	//if err != nil {
-	//	return fmt.Errorf("querying a8m groups: %w", err)
-	//}
-	//fmt.Println(groups)
-	//// Output: [Group(id=1, name=GitHub) Group(id=2, name=GitLab)]
-	//
-	//groups, err = nati.
-	//	QueryGroups().
-	//	All(ctx)
-	//if err != nil {
-	//	return fmt.Errorf("querying nati groups: %w", err)
-	//}
-	//fmt.Println(groups)
-	//// Output: [Group(id=1, name=GitHub)]
-	//
+	// Query the edges.
+	groups, err := a8m.
+		QueryGroups().
+		All(ctx)
+	if err != nil {
+		return fmt.Errorf("querying a8m groups: %w", err)
+	}
+	fmt.Println(groups)
+	// Output: [Group(id=1, name=GitHub) Group(id=2, name=GitLab)]
+
+	groups, err = nati.
+		QueryGroups().
+		All(ctx)
+	if err != nil {
+		return fmt.Errorf("querying nati groups: %w", err)
+	}
+	fmt.Println(groups)
+	// Output: [Group(id=1, name=GitHub)]
+
 	//// Traverse the graph.
 	//users, err := a8m.
 	//	QueryGroups().                                           // [hub, lab]
