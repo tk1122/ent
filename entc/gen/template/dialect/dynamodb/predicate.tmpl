@@ -51,8 +51,8 @@ in the LICENSE file in the root directory of this source tree.
 	func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
         dynamodbgraph.From(Table, {{ $.ID.Constant }}),
-        dynamodbgraph.To({{ $e.AttributeConstant }}, {{ $refid }}, []string{}),
-        dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $e.AttributeConstant }},
+        dynamodbgraph.To({{ $e.TableConstant }}, {{ $refid }}, []string{}),
+        dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $e.TableConstant }},
 				{{- if $e.M2M -}}
 					{{ $e.AttributesConstant }}...
 				{{- else -}}

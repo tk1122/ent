@@ -138,9 +138,9 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 	step := dynamodbgraph.NewStep(
 		dynamodbgraph.From({{ $n.Package }}.Table, {{ $n.Package }}.{{ $n.ID.Constant }}, selector),
 		dynamodbgraph.To({{ $e.Type.Package }}.Table, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, {{ $e.Type.Package }}.Keys),
-		dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.AttributeConstant }},
+		dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.TableConstant }},
 			{{- if $e.M2M -}}
-				{{ $n.Package }}.{{ $e.AttributeConstant }}...
+				{{ $n.Package }}.{{ $e.AttributesConstant }}...
 			{{- else -}}
 				{{ $n.Package }}.{{ $e.AttributeConstant }}
 			{{- end -}}
