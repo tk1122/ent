@@ -244,8 +244,8 @@ func HasPets() predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(PetsAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, PetsAttribute, PetsAttribute),
+			dynamodbgraph.To(PetsTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, PetsTable, PetsAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})

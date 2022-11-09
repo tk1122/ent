@@ -77,7 +77,7 @@ func (pq *PetQuery) QueryOwner() *UserQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(pet.Table, pet.FieldID, selector),
 			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, pet.OwnerAttribute, pet.OwnerAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, pet.OwnerTable, pet.OwnerAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil

@@ -282,7 +282,7 @@ type Step struct {
 	// From is the source of the step.
 	From struct {
 		// V can be either one vertex or set of vertices.
-		// It can be a pre-processed step (mongo.Selector) or a simple Go type (integer or string).
+		// It can be a pre-processed step (dynamodb.Selector) or a simple Go type (integer or string).
 		V interface{}
 		// Table holds the collection name of V (from).
 		Table string
@@ -379,7 +379,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 	ctx := context.TODO()
 	switch r := s.Edge.Rel; {
 	case r == M2M && (s.Edge.Inverse || s.Edge.Bidi):
-		joinTableQuery := dynamodb.Select().
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes[0]).
 			From(s.Edge.Table).
 			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V)).
 			BuildExpressions()
@@ -398,7 +398,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 			Where(dynamodb.In(s.To.Attribute, ids...))
 
 	case r == M2M && !s.Edge.Inverse:
-		joinTableQuery := dynamodb.Select().
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes[1]).
 			From(s.Edge.Table).
 			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V)).
 			BuildExpressions()
@@ -419,7 +419,6 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 	case r == M2O || (r == O2O && s.Edge.Inverse):
 		q = dynamodb.Select().
 			From(s.To.Table)
-
 		iq := dynamodb.Select(s.Edge.Attributes[0]).
 			From(s.Edge.Table).
 			Where(dynamodb.EQ(s.From.Attribute, s.From.V)).
@@ -430,7 +429,6 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 			q.AddError(err)
 			return q
 		}
-
 		q.Where(dynamodb.EQ(s.To.Attribute, output.Items[0][s.Edge.Attributes[0]]))
 
 	case r == O2M || (r == O2O && !s.Edge.Inverse):

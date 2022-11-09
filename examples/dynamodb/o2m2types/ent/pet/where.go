@@ -173,8 +173,8 @@ func HasOwner() predicate.Pet {
 	return predicate.Pet(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(OwnerAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, OwnerAttribute, OwnerAttribute),
+			dynamodbgraph.To(OwnerTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, OwnerTable, OwnerAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})
