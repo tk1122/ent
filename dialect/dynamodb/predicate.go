@@ -81,6 +81,17 @@ func And(preds ...*Predicate) *Predicate {
 	})
 }
 
+// Or combines all given predicates with expression.Or between them.
+func Or(preds ...*Predicate) *Predicate {
+	return P().Append(func() expression.ConditionBuilder {
+		cond := preds[0].Query()
+		for _, pred := range preds[1:] {
+			cond = expression.Or(cond, pred.Query())
+		}
+		return cond
+	})
+}
+
 // NotExist returns the `expression.Not(expression.Name(key).AttributeExists())` predicate.
 func NotExist(col string) *Predicate {
 	return P().NotExist(col)

@@ -41,7 +41,7 @@ func (a *Atlas) Create(ctx context.Context, tables ...*Table) (err error) {
 			}
 		}
 		// ProvisionedThroughput is required. Use hardcoded values for now.
-		ct.SetProvisionedThroughput(10, 10)
+		ct.SetProvisionedThroughput(1, 1)
 		op, args := ct.Op()
 		if err := a.driver.Exec(ctx, op, args, nil); err != nil {
 			return err

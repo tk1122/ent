@@ -223,14 +223,21 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 		toAttr, fromAttr := e.Attributes[0], e.Attributes[1]
 		for _, fromId := range fromIds {
 			for _, toId := range toIds {
-				data := make(map[string]types.AttributeValue)
-				if data[toAttr], err = attributevalue.Marshal(toId); err != nil {
+				item, reverseItem := make(map[string]types.AttributeValue), make(map[string]types.AttributeValue)
+				if item[toAttr], err = attributevalue.Marshal(toId); err != nil {
 					return fmt.Errorf("add m2m edge: %w", err)
 				}
-				if data[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
+				if item[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
 					return fmt.Errorf("add m2m edge: %w", err)
 				}
-				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(data))
+				if reverseItem[toAttr], err = attributevalue.Marshal(fromId); err != nil {
+					return fmt.Errorf("add m2m edge: %w", err)
+				}
+				if reverseItem[fromAttr], err = attributevalue.Marshal(toId); err != nil {
+					return fmt.Errorf("add m2m edge: %w", err)
+				}
+				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(item))
+				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
 			}
 		}
 	}
@@ -379,9 +386,10 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 	ctx := context.TODO()
 	switch r := s.Edge.Rel; {
 	case r == M2M && (s.Edge.Inverse || s.Edge.Bidi):
-		joinTableQuery := dynamodb.Select(s.Edge.Attributes[0]).
+		pred := dynamodb.EQ(s.Edge.Attributes[0], s.From.V)
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes...).
 			From(s.Edge.Table).
-			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V)).
+			Where(pred).
 			BuildExpressions()
 		op, args := joinTableQuery.Op()
 		var output sdk.ScanOutput
@@ -391,7 +399,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 		}
 		var ids []interface{}
 		for _, i := range output.Items {
-			ids = append(ids, i[s.Edge.Attributes[0]])
+			ids = append(ids, i[s.Edge.Attributes[1]])
 		}
 		q = dynamodb.Select().
 			From(s.To.Table).
