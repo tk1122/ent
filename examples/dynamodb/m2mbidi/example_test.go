@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/m2mbidi/ent"
@@ -38,7 +39,7 @@ func Do(ctx context.Context, client *ent.Client) error {
 		SetAge(30).
 		SetName("a8m").
 		SaveX(ctx)
-	_ = client.User.
+	nati := client.User.
 		Create().
 		SetID(2).
 		SetAge(28).
@@ -46,19 +47,19 @@ func Do(ctx context.Context, client *ent.Client) error {
 		AddFriends(a8m).
 		SaveX(ctx)
 
-	//// Query friends. Unlike `All`, `AllX` panics if an error occurs.
-	//friends := nati.
-	//	QueryFriends().
-	//	AllX(ctx)
-	//fmt.Println(friends)
-	//// Output: [User(id=1, age=30, name=a8m)]
-	//
-	//friends = a8m.
-	//	QueryFriends().
-	//	AllX(ctx)
-	//fmt.Println(friends)
-	//// Output: [User(id=2, age=28, name=nati)]
-	//
+	// Query friends. Unlike `All`, `AllX` panics if an error occurs.
+	friends := nati.
+		QueryFriends().
+		AllX(ctx)
+	fmt.Println(friends)
+	// Output: [User(id=1, age=30, name=a8m)]
+
+	friends = a8m.
+		QueryFriends().
+		AllX(ctx)
+	fmt.Println(friends)
+	// Output: [User(id=2, age=28, name=nati)]
+
 	//// Query the graph:
 	//friends = client.User.
 	//	Query().
