@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/m2mrecur/ent"
@@ -41,7 +42,7 @@ func Do(ctx context.Context, client *ent.Client) error {
 		SetAge(30).
 		SetName("a8m").
 		SaveX(ctx)
-	_ = client.User.
+	nati := client.User.
 		Create().
 		SetID(2).
 		SetAge(28).
@@ -49,23 +50,23 @@ func Do(ctx context.Context, client *ent.Client) error {
 		AddFollowers(a8m).
 		SaveX(ctx)
 
-	//// Query following/followers:
-	//
-	//flw := a8m.QueryFollowing().AllX(ctx)
-	//fmt.Println(flw)
-	//// Output: [User(id=2, age=28, name=nati)]
-	//
-	//flr := a8m.QueryFollowers().AllX(ctx)
-	//fmt.Println(flr)
-	//// Output: []
-	//
-	//flw = nati.QueryFollowing().AllX(ctx)
-	//fmt.Println(flw)
-	//// Output: []
-	//
-	//flr = nati.QueryFollowers().AllX(ctx)
-	//fmt.Println(flr)
-	//// Output: [User(id=1, age=30, name=a8m)]
+	// Query following/followers:
+
+	flw := a8m.QueryFollowing().AllX(ctx)
+	fmt.Println(flw)
+	// Output: [User(id=2, age=28, name=nati)]
+
+	flr := a8m.QueryFollowers().AllX(ctx)
+	fmt.Println(flr)
+	// Output: []
+
+	flw = nati.QueryFollowing().AllX(ctx)
+	fmt.Println(flw)
+	// Output: []
+
+	flr = nati.QueryFollowers().AllX(ctx)
+	fmt.Println(flr)
+	// Output: [User(id=1, age=30, name=a8m)]
 	//
 	//// Traverse the graph:
 	//
