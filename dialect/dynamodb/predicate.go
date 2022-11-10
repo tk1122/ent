@@ -57,6 +57,9 @@ func In(key string, vals ...interface{}) *Predicate {
 // In appends the `expression.Name(key).In(expression.Value(vals))` predicate.
 func (p *Predicate) In(key string, vals ...interface{}) *Predicate {
 	return p.Append(func() expression.ConditionBuilder {
+		if len(vals) == 0 {
+			return expression.Name(key).In(expression.Value(vals))
+		}
 		exp := expression.Name(key).In(expression.Value(vals[0]))
 		if len(vals) == 1 {
 			return exp

@@ -223,21 +223,24 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 		toAttr, fromAttr := e.Attributes[0], e.Attributes[1]
 		for _, fromId := range fromIds {
 			for _, toId := range toIds {
-				item, reverseItem := make(map[string]types.AttributeValue), make(map[string]types.AttributeValue)
+				item := make(map[string]types.AttributeValue)
 				if item[toAttr], err = attributevalue.Marshal(toId); err != nil {
 					return fmt.Errorf("add m2m edge: %w", err)
 				}
 				if item[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
 					return fmt.Errorf("add m2m edge: %w", err)
 				}
-				if reverseItem[toAttr], err = attributevalue.Marshal(fromId); err != nil {
-					return fmt.Errorf("add m2m edge: %w", err)
-				}
-				if reverseItem[fromAttr], err = attributevalue.Marshal(toId); err != nil {
-					return fmt.Errorf("add m2m edge: %w", err)
-				}
 				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(item))
-				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
+				if e.Bidi {
+					reverseItem := make(map[string]types.AttributeValue)
+					if reverseItem[toAttr], err = attributevalue.Marshal(fromId); err != nil {
+						return fmt.Errorf("add m2m edge: %w", err)
+					}
+					if reverseItem[fromAttr], err = attributevalue.Marshal(toId); err != nil {
+						return fmt.Errorf("add m2m edge: %w", err)
+					}
+					batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
+				}
 			}
 		}
 	}
@@ -385,7 +388,7 @@ func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Select
 func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 	ctx := context.TODO()
 	switch r := s.Edge.Rel; {
-	case r == M2M && (s.Edge.Inverse || s.Edge.Bidi):
+	case r == M2M && s.Edge.Bidi:
 		pred := dynamodb.EQ(s.Edge.Attributes[0], s.From.V)
 		joinTableQuery := dynamodb.Select(s.Edge.Attributes...).
 			From(s.Edge.Table).
@@ -400,6 +403,25 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 		var ids []interface{}
 		for _, i := range output.Items {
 			ids = append(ids, i[s.Edge.Attributes[1]])
+		}
+		q = dynamodb.Select().
+			From(s.To.Table).
+			Where(dynamodb.In(s.To.Attribute, ids...))
+
+	case r == M2M && s.Edge.Inverse:
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes[0]).
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V)).
+			BuildExpressions()
+		op, args := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		var ids []interface{}
+		for _, i := range output.Items {
+			ids = append(ids, i[s.Edge.Attributes[0]])
 		}
 		q = dynamodb.Select().
 			From(s.To.Table).
