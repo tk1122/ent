@@ -6,6 +6,14 @@
 
 package ent
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
+
 // Pet is the model entity for the Pet schema.
 type Pet struct {
 	config `json:"-"`
@@ -26,4 +34,57 @@ type PetEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
+}
+
+// PetItem represents item schema in MongoDB.
+type PetItem struct {
+	ID   int    `dynamodbav:"id"`
+	Name string `dynamodbav:"name"`
+
+	UserPets *int `dynamodbav:"user_pets"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*Pet) item() interface{} {
+	return &PetItem{}
+}
+
+// FromItem scans the dynamodb response item into Pet.
+func (pe *Pet) FromItem(item interface{}) error {
+	var petItem PetItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &petItem)
+	if err != nil {
+		return err
+	}
+	pe.ID = petItem.ID
+	pe.Name = petItem.Name
+
+	pe.user_pets = petItem.UserPets
+
+	return nil
+}
+
+// QueryOwner queries the "owner" edge of the Pet entity.
+func (pe *Pet) QueryOwner() *UserQuery {
+	return (&PetClient{config: pe.config}).QueryOwner(pe)
+}
+
+// String implements the fmt.Stringer.
+func (pe *Pet) String() string {
+	var builder strings.Builder
+	builder.WriteString("Pet(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", pe.ID))
+	builder.WriteString("name=")
+	builder.WriteString(pe.Name)
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Pets is a parsable slice of Pet.
+type Pets []*Pet
+
+func (pe Pets) config(cfg config) {
+	for _i := range pe {
+		pe[_i].config = cfg
+	}
 }

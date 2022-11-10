@@ -48,7 +48,7 @@ func Do(ctx context.Context, client *ent.Client) error {
 	if err != nil {
 		return err
 	}
-	_, err = client.Card.
+	card1, err := client.Card.
 		Create().
 		SetID(1).
 		SetOwner(a8m).
@@ -58,20 +58,20 @@ func Do(ctx context.Context, client *ent.Client) error {
 	if err != nil {
 		return fmt.Errorf("creating card: %w", err)
 	}
-	//fmt.Println("card:", card1)
-	//// Only returns the card of the user,
-	//// and expects that there's only one.
-	//card2, err := a8m.QueryCard().Only(ctx)
-	//if err != nil {
-	//	return fmt.Errorf("querying card: %w", err)
-	//}
-	//fmt.Println("card:", card2)
-	//// The Card entity is able to query its owner using
-	//// its back-reference.
-	//owner, err := card2.QueryOwner().Only(ctx)
-	//if err != nil {
-	//	return fmt.Errorf("querying owner: %w", err)
-	//}
-	//fmt.Println("owner:", owner)
+	fmt.Println("card:", card1)
+	// Only returns the card of the user,
+	// and expects that there's only one.
+	card2, err := a8m.QueryCard().Only(ctx)
+	if err != nil {
+		return fmt.Errorf("querying card: %v", err)
+	}
+	fmt.Println("card:", card2)
+	//The Card entity is able to query its owner using
+	//its back-reference.
+	owner, err := card2.QueryOwner().Only(ctx)
+	if err != nil {
+		return fmt.Errorf("querying owner: %v", err)
+	}
+	fmt.Println("owner:", owner)
 	return nil
 }

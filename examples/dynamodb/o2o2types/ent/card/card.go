@@ -27,3 +27,31 @@ const (
 	// OwnerAttribute is the table column denoting the owner relation/edge.
 	OwnerAttribute = "user_card"
 )
+
+// Keys holds all DynamoDB keys for card fields.
+var Keys = []string{
+	FieldID,
+	FieldExpired,
+	FieldNumber,
+	"user_card",
+}
+
+// ForeignKeys holds the Mongo foreign-keys that are owned by the Card type.
+var ForeignKeys = []string{
+	"user_card",
+}
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	for i := range ForeignKeys {
+		if key == ForeignKeys[i] {
+			return true
+		}
+	}
+	return false
+}

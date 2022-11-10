@@ -105,6 +105,8 @@ func (c Client) run(ctx context.Context, op string, args, v interface{}) error {
 		return c.updateItem(ctx, args, v)
 	case BatchWriteOperation:
 		return c.batchWrite(ctx, args, v)
+	case ScanOperation:
+		return c.scan(ctx, args, v)
 	default:
 		return fmt.Errorf("%s operation is unsupported", op)
 	}
@@ -140,6 +142,17 @@ func (c Client) batchWrite(ctx context.Context, args, v interface{}) (err error)
 		RequestItems: requestItems,
 	})
 	return err
+}
+
+func (c Client) scan(ctx context.Context, args, v interface{}) (err error) {
+	output := v.(*dynamodb.ScanOutput)
+	input := args.(*dynamodb.ScanInput)
+	scanOutput, err := c.Scan(ctx, input)
+	if err != nil {
+		return err
+	}
+	*output = *scanOutput
+	return nil
 }
 
 // Client wrap a DynamoDB client from AWS SDK to implement dialect.ExecQuerier

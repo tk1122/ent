@@ -6,6 +6,14 @@
 
 package ent
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
+
 // Node is the model entity for the Node schema.
 type Node struct {
 	config `json:"-"`
@@ -28,4 +36,62 @@ type NodeEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
+}
+
+// NodeItem represents item schema in MongoDB.
+type NodeItem struct {
+	ID    int `dynamodbav:"id"`
+	Value int `dynamodbav:"value"`
+
+	NodeNext *int `dynamodbav:"node_next"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*Node) item() interface{} {
+	return &NodeItem{}
+}
+
+// FromItem scans the dynamodb response item into Node.
+func (n *Node) FromItem(item interface{}) error {
+	var nodeItem NodeItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &nodeItem)
+	if err != nil {
+		return err
+	}
+	n.ID = nodeItem.ID
+	n.Value = nodeItem.Value
+
+	n.node_next = nodeItem.NodeNext
+
+	return nil
+}
+
+// QueryPrev queries the "prev" edge of the Node entity.
+func (n *Node) QueryPrev() *NodeQuery {
+	return (&NodeClient{config: n.config}).QueryPrev(n)
+}
+
+// QueryNext queries the "next" edge of the Node entity.
+func (n *Node) QueryNext() *NodeQuery {
+	return (&NodeClient{config: n.config}).QueryNext(n)
+}
+
+// String implements the fmt.Stringer.
+func (n *Node) String() string {
+	var builder strings.Builder
+	builder.WriteString("Node(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", n.ID))
+	builder.WriteString("value=")
+	builder.WriteString(fmt.Sprintf("%v", n.Value))
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Nodes is a parsable slice of Node.
+type Nodes []*Node
+
+func (n Nodes) config(cfg config) {
+	for _i := range n {
+		n[_i].config = cfg
+	}
 }

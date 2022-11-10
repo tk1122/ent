@@ -23,8 +23,26 @@ const (
 	FriendsTable = "user_friends"
 )
 
+// Keys holds all DynamoDB keys for user fields.
+var Keys = []string{
+	FieldID,
+	FieldAge,
+	FieldName,
+	"friend_id",
+}
+
 var (
 	// FriendsAttribute and FriendsAttribute2 are the collection keys denoting the
 	// primary key for the friends relation (M2M).
-	FriendsAttribute = []string{"user_id", "friend_id"}
+	FriendsAttributes = []string{"user_id", "friend_id"}
 )
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	return false
+}

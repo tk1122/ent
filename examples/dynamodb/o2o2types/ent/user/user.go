@@ -27,3 +27,20 @@ const (
 	// CardAttribute is the table column denoting the card relation/edge.
 	CardAttribute = "user_card"
 )
+
+// Keys holds all DynamoDB keys for user fields.
+var Keys = []string{
+	FieldID,
+	FieldAge,
+	FieldName,
+}
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	return false
+}

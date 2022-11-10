@@ -6,6 +6,14 @@
 
 package ent
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
+
 // Group is the model entity for the Group schema.
 type Group struct {
 	config `json:"-"`
@@ -15,7 +23,8 @@ type Group struct {
 	Name string `json:"name,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the GroupQuery when eager-loading is set.
-	Edges GroupEdges `json:"edges"`
+	Edges   GroupEdges `json:"edges"`
+	user_id []int
 }
 
 // GroupEdges holds the relations/edges for other nodes in the graph.
@@ -25,4 +34,57 @@ type GroupEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
+}
+
+// GroupItem represents item schema in MongoDB.
+type GroupItem struct {
+	ID   int    `dynamodbav:"id"`
+	Name string `dynamodbav:"name"`
+
+	UserID []int `dynamodbav:"user_id"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*Group) item() interface{} {
+	return &GroupItem{}
+}
+
+// FromItem scans the dynamodb response item into Group.
+func (gr *Group) FromItem(item interface{}) error {
+	var groupItem GroupItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &groupItem)
+	if err != nil {
+		return err
+	}
+	gr.ID = groupItem.ID
+	gr.Name = groupItem.Name
+
+	gr.user_id = groupItem.UserID
+
+	return nil
+}
+
+// QueryUsers queries the "users" edge of the Group entity.
+func (gr *Group) QueryUsers() *UserQuery {
+	return (&GroupClient{config: gr.config}).QueryUsers(gr)
+}
+
+// String implements the fmt.Stringer.
+func (gr *Group) String() string {
+	var builder strings.Builder
+	builder.WriteString("Group(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", gr.ID))
+	builder.WriteString("name=")
+	builder.WriteString(gr.Name)
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Groups is a parsable slice of Group.
+type Groups []*Group
+
+func (gr Groups) config(cfg config) {
+	for _i := range gr {
+		gr[_i].config = cfg
+	}
 }

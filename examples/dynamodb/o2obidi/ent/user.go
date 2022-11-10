@@ -6,6 +6,14 @@
 
 package ent
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
+
 // User is the model entity for the User schema.
 type User struct {
 	config `json:"-"`
@@ -28,4 +36,62 @@ type UserEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
+}
+
+// UserItem represents item schema in MongoDB.
+type UserItem struct {
+	ID   int    `dynamodbav:"id"`
+	Age  int    `dynamodbav:"age"`
+	Name string `dynamodbav:"name"`
+
+	UserSpouse *int `dynamodbav:"user_spouse"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*User) item() interface{} {
+	return &UserItem{}
+}
+
+// FromItem scans the dynamodb response item into User.
+func (u *User) FromItem(item interface{}) error {
+	var userItem UserItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &userItem)
+	if err != nil {
+		return err
+	}
+	u.ID = userItem.ID
+	u.Age = userItem.Age
+	u.Name = userItem.Name
+
+	u.user_spouse = userItem.UserSpouse
+
+	return nil
+}
+
+// QuerySpouse queries the "spouse" edge of the User entity.
+func (u *User) QuerySpouse() *UserQuery {
+	return (&UserClient{config: u.config}).QuerySpouse(u)
+}
+
+// String implements the fmt.Stringer.
+func (u *User) String() string {
+	var builder strings.Builder
+	builder.WriteString("User(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", u.ID))
+	builder.WriteString("age=")
+	builder.WriteString(fmt.Sprintf("%v", u.Age))
+	builder.WriteString(", ")
+	builder.WriteString("name=")
+	builder.WriteString(u.Name)
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Users is a parsable slice of User.
+type Users []*User
+
+func (u Users) config(cfg config) {
+	for _i := range u {
+		u[_i].config = cfg
+	}
 }

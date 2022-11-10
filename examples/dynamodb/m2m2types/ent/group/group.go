@@ -24,8 +24,25 @@ const (
 	UsersInverseTable = "users"
 )
 
+// Keys holds all DynamoDB keys for group fields.
+var Keys = []string{
+	FieldID,
+	FieldName,
+	"user_id",
+}
+
 var (
 	// UsersAttribute and UsersAttribute2 are the collection keys denoting the
 	// primary key for the users relation (M2M).
-	UsersAttribute = []string{"group_id", "user_id"}
+	UsersAttributes = []string{"group_id", "user_id"}
 )
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	return false
+}

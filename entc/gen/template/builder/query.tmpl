@@ -307,8 +307,8 @@ func ({{ $receiver }} *{{ $builder }}) Clone() *{{ $builder }} {
 		return {{ $receiver }}
 	}
 {{- end }}
-
 {{ $groupBuilder := pascal $.Name | printf "%sGroupBy" }}
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: {{ join (keys aggregate) ", " }}.
@@ -341,7 +341,7 @@ func ({{ $receiver }} *{{ $builder }}) GroupBy(field string, fields ...string) *
 	grbuild.flds, grbuild.scan = &grbuild.fields, grbuild.Scan
 	return grbuild
 }
-
+{{ end }}
 {{ $selectBuilder := pascal $.Name | printf "%sSelect" }}
 
 // Select allows the selection one or more fields/columns for the given query,
@@ -362,10 +362,7 @@ func ({{ $receiver }} *{{ $builder }}) GroupBy(field string, fields ...string) *
 {{- end }}
 func ({{ $receiver }} *{{ $builder }}) Select(fields ...string) *{{ $selectBuilder }} {
 	{{ $receiver }}.fields = append({{ $receiver }}.fields, fields...)
-	selbuild := &{{ $selectBuilder }}{ {{ $builder }}: {{ $receiver }} }
-	selbuild.label = {{ $.Package }}.Label
-	selbuild.flds, selbuild.scan = &{{ $receiver }}.fields, selbuild.Scan
-	return selbuild
+	return &{{ $selectBuilder }}{ {{ $builder }}: {{ $receiver }} }
 }
 
 func ({{ $receiver }} *{{ $builder }}) prepareQuery(ctx context.Context) error {
@@ -407,7 +404,7 @@ func ({{ $receiver }} *{{ $builder }}) prepareQuery(ctx context.Context) error {
 	{{- end }}
 {{- end }}
 
-
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{/* groupby builder */}}
 
 {{ $groupReceiver := receiver $groupBuilder }}
@@ -443,7 +440,7 @@ func ({{ $groupReceiver }} *{{ $groupBuilder }}) Scan(ctx context.Context, v any
 	{{ $tmpl := printf "dialect/%s/group" $.Storage }}
 	{{ xtemplate $tmpl . }}
 {{ end }}
-
+{{ end }}
 {{/* select builder */}}
 
 {{ $selectReceiver := receiver $selectBuilder }}
@@ -451,7 +448,9 @@ func ({{ $groupReceiver }} *{{ $groupBuilder }}) Scan(ctx context.Context, v any
 // {{ $selectBuilder }} is the builder for selecting fields of {{ pascal $.Name }} entities.
 type {{ $selectBuilder }} struct {
 	*{{ $builder }}
+	{{- if ne $.Config.Storage.Name "dynamodb" }}
 	selector
+	{{- end }}
 	// intermediate query (i.e. traversal path).
 	{{ $.Storage }} {{ $.Storage.Builder }}
 }

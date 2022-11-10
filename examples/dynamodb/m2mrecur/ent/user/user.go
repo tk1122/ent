@@ -27,11 +27,30 @@ const (
 	FollowingTable = "user_following"
 )
 
+// Keys holds all DynamoDB keys for user fields.
+var Keys = []string{
+	FieldID,
+	FieldAge,
+	FieldName,
+	"user_id",
+	"follower_id",
+}
+
 var (
 	// FollowersAttribute and FollowersAttribute2 are the collection keys denoting the
 	// primary key for the followers relation (M2M).
-	FollowersAttribute = []string{"user_id", "follower_id"}
+	FollowersAttributes = []string{"user_id", "follower_id"}
 	// FollowingAttribute and FollowingAttribute2 are the collection keys denoting the
 	// primary key for the following relation (M2M).
-	FollowingAttribute = []string{"user_id", "follower_id"}
+	FollowingAttributes = []string{"user_id", "follower_id"}
 )
+
+// ValidKey reports if the key is valid (one of keys of collection's fields).
+func ValidKey(key string) bool {
+	for i := range Keys {
+		if key == Keys[i] {
+			return true
+		}
+	}
+	return false
+}

@@ -200,7 +200,7 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 			Rel:        dynamodbgraph.M2M,
 			Inverse:    true,
 			Table:      user.FollowersTable,
-			Attributes: user.FollowersAttribute,
+			Attributes: user.FollowersAttributes,
 			Bidi:       false,
 			Target: &dynamodbgraph.EdgeTarget{
 				IDSpec: &dynamodbgraph.FieldSpec{
@@ -219,7 +219,7 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 			Rel:        dynamodbgraph.M2M,
 			Inverse:    false,
 			Table:      user.FollowingTable,
-			Attributes: user.FollowingAttribute,
+			Attributes: user.FollowingAttributes,
 			Bidi:       false,
 			Target: &dynamodbgraph.EdgeTarget{
 				IDSpec: &dynamodbgraph.FieldSpec{

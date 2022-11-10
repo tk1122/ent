@@ -1,0 +1,73 @@
+{{/*
+Copyright 2019-present Facebook Inc. All rights reserved.
+This source code is licensed under the Apache 2.0 license found
+in the LICENSE file in the root directory of this source tree.
+*/}}
+
+{{/* gotype: entgo.io/ent/entc/gen.typeScope */}}
+
+{{ define "dialect/dynamodb/decode/one" }}
+{{ $receiver := $.Receiver }}
+
+{{- $itemName := print $.Name "Item" }}
+// {{ $itemName }} represents item schema in MongoDB.
+type {{ $itemName }} struct {
+	ID   {{ $.ID.Type }}  `dynamodbav:"{{ $.ID.StorageKey }}"`
+	{{ range $_, $f := $.Fields }}
+		{{- $f.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }} `dynamodbav:"{{ $f.StorageKey }}"`
+	{{ end }}
+	{{- range $fk := $.UnexportedForeignKeys }}
+		{{- $f := $fk.Field }}
+		{{ $f.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }} `dynamodbav:"{{ $f.StorageKey }}"`
+	{{- end }}
+
+	{{- with $.NumM2M }}
+		{{ range $e := $.Edges }}
+			{{- if $e.M2M }}
+				{{ $e.Key | pascal }} []{{ $e.Type.ID.Type }} `dynamodbav:"{{ $e.Key }}"`
+			{{- end }}
+		{{- end }}
+	{{- end }}
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*{{ $.Name }}) item() interface{} {
+	return &{{ $itemName }}{}
+}
+
+// FromItem scans the dynamodb response item into {{ $.Name }}.
+func ({{ $receiver }} *{{ $.Name }}) FromItem(item interface{}) error {
+	{{- $itemVar := print $.Name "Item" | snake | camel }}
+	var {{ $itemVar }} {{ $itemName }}
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &{{ $itemVar }})
+	if err != nil {
+		return err
+	}
+	{{ $receiver }}.ID = {{ $itemVar }}.ID
+	{{ range $_, $f := $.Fields }}
+		{{- $receiver }}.{{ $f.StructField }} = {{ $itemVar }}.{{ $f.StructField }}
+	{{ end -}}
+
+	{{- range $fk := $.UnexportedForeignKeys }}
+		{{- $f := $fk.Field }}
+		{{ $receiver }}.{{ $f.Name }} = {{ $itemVar }}.{{ $f.StructField }}
+	{{- end }}
+
+	{{- with $.NumM2M }}
+		{{ range $e := $.Edges }}
+			{{- if $e.M2M }}
+				{{ $receiver }}.{{ $e.Key }} = {{ $itemVar }}.{{ $e.Key | pascal }}
+			{{- end }}
+		{{- end }}
+	{{- end }}
+
+	return nil
+}
+
+{{ end }}
+
+{{ define "dialect/dynamodb/decode/field" }}
+{{- end }}
+
+{{ define "dialect/dynamodb/decode/many" }}
+{{ end }}

@@ -223,14 +223,24 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 		toAttr, fromAttr := e.Attributes[0], e.Attributes[1]
 		for _, fromId := range fromIds {
 			for _, toId := range toIds {
-				data := make(map[string]types.AttributeValue)
-				if data[toAttr], err = attributevalue.Marshal(toId); err != nil {
+				item := make(map[string]types.AttributeValue)
+				if item[toAttr], err = attributevalue.Marshal(toId); err != nil {
 					return fmt.Errorf("add m2m edge: %w", err)
 				}
-				if data[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
+				if item[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
 					return fmt.Errorf("add m2m edge: %w", err)
 				}
-				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(data))
+				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(item))
+				if e.Bidi {
+					reverseItem := make(map[string]types.AttributeValue)
+					if reverseItem[toAttr], err = attributevalue.Marshal(fromId); err != nil {
+						return fmt.Errorf("add m2m edge: %w", err)
+					}
+					if reverseItem[fromAttr], err = attributevalue.Marshal(toId); err != nil {
+						return fmt.Errorf("add m2m edge: %w", err)
+					}
+					batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
+				}
 			}
 		}
 	}
@@ -257,4 +267,374 @@ func (es EdgeSpecs) GroupRel() map[Rel][]*EdgeSpec {
 		edges[edge.Rel] = append(edges[edge.Rel], edge)
 	}
 	return edges
+}
+
+// NewStep gets list of options and returns a configured step.
+//
+//	NewStep(
+//		From("table", "id", V),
+//		To("table", "id"),
+//		Edge("name", O2M, "ref_id"),
+//	)
+func NewStep(opts ...StepOption) *Step {
+	s := &Step{}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// StepOption allows configuring Steps using functional options.
+type StepOption func(*Step)
+
+// A Step provides a path-step information to the traversal functions.
+type Step struct {
+	// From is the source of the step.
+	From struct {
+		// V can be either one vertex or set of vertices.
+		// It can be a pre-processed step (dynamodb.Selector) or a simple Go type (integer or string).
+		V interface{}
+		// Table holds the collection name of V (from).
+		Table string
+		// Attribute to join with. Usually the "id" key.
+		Attribute string
+	}
+	// Edge holds the edge information for getting the neighbors.
+	Edge struct {
+		// Rel of the edge.
+		Rel Rel
+		// Table name of where this edge keys reside.
+		Table string
+		// Attributes of the edge.
+		// In O2O and M2O, it holds the foreign-key field. Hence, len == 1.
+		// In M2M, it holds the primary-key keys of the join collection. Hence, len == 2.
+		Attributes []string
+		// Inverse indicates if the edge is an inverse edge.
+		Inverse bool
+		// Bidi indicates if this edge is a bidirectional edge. A self-reference
+		// to the same type with the same name (symmetric relation). For example,
+		// a User type have one of following edges:
+		//
+		//	edge.To("friends", User.Type)           // many 2 many.
+		//	edge.To("spouse", User.Type).Unique()   // one 2 one.
+		//
+		Bidi bool
+	}
+	// To is the dest of the path (the neighbors).
+	To struct {
+		// Table holds the table name of the neighbors (to).
+		Table string
+		// Attribute to join with. Usually the "id" key.
+		Attribute string
+		// CollectionKeys holds all keys of the collection.
+		// Note: Only use in HasNeighbors/HasNeighborsWith.
+		CollectionKeys []string
+	}
+}
+
+// From sets the source of the step.
+func From(table, attr string, v ...interface{}) StepOption {
+	return func(s *Step) {
+		s.From.Table = table
+		s.From.Attribute = attr
+		if len(v) > 0 {
+			s.From.V = v[0]
+		}
+	}
+}
+
+// To sets the destination of the step.
+func To(table, attr string, collectionKeys []string) StepOption {
+	return func(s *Step) {
+		s.To.Table = table
+		s.To.Attribute = attr
+		s.To.CollectionKeys = collectionKeys
+	}
+}
+
+// Edge sets the edge info for getting the neighbors.
+func Edge(rel Rel, inverse bool, bidi bool, table string, attrs ...string) StepOption {
+	return func(s *Step) {
+		s.Edge.Rel = rel
+		s.Edge.Table = table
+		s.Edge.Attributes = attrs
+		s.Edge.Inverse = inverse
+		s.Edge.Bidi = bidi
+	}
+}
+
+// HasNeighbors applies on the given Selector a neighbors check.
+func HasNeighbors(q *dynamodb.Selector, s *Step) {
+	HasNeighborsWith(q, s, func(*dynamodb.Selector) {})
+}
+
+// HasNeighborsWith applies on the given Selector a neighbors check.
+// The given predicate applies its filtering on the selector.
+func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Selector)) {
+	switch r := s.Edge.Rel; {
+	case r == M2M && s.Edge.Inverse:
+
+	case r == M2M && !s.Edge.Inverse:
+
+	case r == M2O || (r == O2O && s.Edge.Inverse):
+		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
+	case r == O2M || (r == O2O && !s.Edge.Inverse):
+		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
+	}
+}
+
+// Neighbors returns a Selector for evaluating the path-step
+// and getting the neighbors of one vertex.
+func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
+	ctx := context.TODO()
+	switch r := s.Edge.Rel; {
+	case r == M2M && s.Edge.Bidi:
+		pred := dynamodb.EQ(s.Edge.Attributes[0], s.From.V)
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes...).
+			From(s.Edge.Table).
+			Where(pred).
+			BuildExpressions()
+		op, args := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		var ids []interface{}
+		for _, i := range output.Items {
+			ids = append(ids, i[s.Edge.Attributes[1]])
+		}
+		q = dynamodb.Select().
+			From(s.To.Table).
+			Where(dynamodb.In(s.To.Attribute, ids...))
+
+	case r == M2M && s.Edge.Inverse:
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes[0]).
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[1], s.From.V)).
+			BuildExpressions()
+		op, args := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		var ids []interface{}
+		for _, i := range output.Items {
+			ids = append(ids, i[s.Edge.Attributes[0]])
+		}
+		q = dynamodb.Select().
+			From(s.To.Table).
+			Where(dynamodb.In(s.To.Attribute, ids...))
+
+	case r == M2M && !s.Edge.Inverse:
+		joinTableQuery := dynamodb.Select(s.Edge.Attributes[1]).
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V)).
+			BuildExpressions()
+		op, args := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		var ids []interface{}
+		for _, i := range output.Items {
+			ids = append(ids, i[s.Edge.Attributes[1]])
+		}
+		q = dynamodb.Select().
+			From(s.To.Table).
+			Where(dynamodb.In(s.To.Attribute, ids...))
+
+	case r == M2O || (r == O2O && s.Edge.Inverse):
+		q = dynamodb.Select().
+			From(s.To.Table)
+		iq := dynamodb.Select(s.Edge.Attributes[0]).
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.From.Attribute, s.From.V)).
+			BuildExpressions()
+		op, args := iq.Op()
+		var output sdk.ScanOutput
+		if err := drv.Query(ctx, op, args, &output); err != nil {
+			q.AddError(err)
+			return q
+		}
+		q.Where(dynamodb.EQ(s.To.Attribute, output.Items[0][s.Edge.Attributes[0]]))
+
+	case r == O2M || (r == O2O && !s.Edge.Inverse):
+		q = dynamodb.Select().
+			From(s.Edge.Table).
+			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V))
+	}
+	return q
+}
+
+// SetNeighbors returns a Selector for evaluating the path-step
+// and getting the neighbors of set of vertices.
+func SetNeighbors(s *Step) (q *dynamodb.Selector) {
+	//set := s.From.V.(*mongo.Selector)
+	//q = mongo.Select().From(set.Collection()).AppendStages(set.Pipeline()...)
+	//
+	//switch r := s.Edge.Rel; {
+	//case r == M2M && s.Edge.Inverse:
+	//	asKey := s.Edge.Collection
+	//	lookup := mongo.Lookup().
+	//		From(s.To.Collection).
+	//		LocalField(s.Edge.Keys[0]).
+	//		ForeignField(s.To.Key).
+	//		As(asKey)
+	//
+	//	q.AppendStages(
+	//		lookup.Stage(),
+	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
+	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
+	//	)
+	//
+	//	g := mongo.Group().ID(s.To.Key)
+	//	for _, k := range s.To.CollectionKeys {
+	//		if s.To.Key != k {
+	//			g.AppendOps(mongo.First(k, k))
+	//		}
+	//	}
+	//	q.AppendStages(g.Stage())
+	//	q.Lock()
+	//
+	//case r == M2M && !s.Edge.Inverse:
+	//	asKey := s.Edge.Collection
+	//	lookup := mongo.Lookup().
+	//		From(s.To.Collection).
+	//		LocalField(s.To.Key).
+	//		ForeignField(s.Edge.Keys[0]).
+	//		As(asKey)
+	//
+	//	q.AppendStages(
+	//		lookup.Stage(),
+	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
+	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
+	//	)
+	//
+	//	g := mongo.Group().ID(s.To.Key)
+	//	for _, k := range s.To.CollectionKeys {
+	//		if s.To.Key != k {
+	//			g.AppendOps(mongo.First(k, k))
+	//		}
+	//	}
+	//	q.AppendStages(g.Stage())
+	//	q.Lock()
+	//
+	//case r == M2O || (r == O2O && s.Edge.Inverse):
+	//	asKey := s.Edge.Collection
+	//	lookup := mongo.Lookup().
+	//		From(s.To.Collection).
+	//		LocalField(s.Edge.Keys[0]).
+	//		ForeignField(s.To.Key).
+	//		As(asKey)
+	//
+	//	q.AppendStages(
+	//		lookup.Stage(),
+	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
+	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
+	//	)
+	//
+	//	if r == M2O {
+	//		g := mongo.Group().ID(s.To.Key)
+	//		for _, k := range s.To.CollectionKeys {
+	//			if s.To.Key != k {
+	//				g.AppendOps(mongo.First(k, k))
+	//			}
+	//		}
+	//		q.AppendStages(g.Stage())
+	//	}
+	//	q.Lock()
+	//
+	//case r == O2M || (r == O2O && !s.Edge.Inverse):
+	//	asKey := s.Edge.Collection
+	//	lookup := mongo.Lookup().
+	//		From(s.To.Collection).
+	//		LocalField(s.From.Key).
+	//		ForeignField(s.Edge.Keys[0]).
+	//		As(asKey)
+	//
+	//	q.AppendStages(
+	//		lookup.Stage(),
+	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
+	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
+	//	)
+	//	q.Lock()
+	//}
+	//return q
+	return nil
+}
+
+// QueryNodes queries the nodes in the graph query and scans them to the given values.
+func QueryNodes(ctx context.Context, drv dialect.Driver, spec *QuerySpec) error {
+	qr := &query{graph: graph{}, QuerySpec: spec}
+	return qr.nodes(ctx, drv)
+}
+
+type query struct {
+	graph
+	*QuerySpec
+}
+
+// QuerySpec holds the information for querying
+// nodes in the graph.
+type QuerySpec struct {
+	Node *NodeSpec          // Nodes info.
+	From *dynamodb.Selector // Optional query source (from path).
+
+	Limit     int
+	Offset    int
+	Order     func(*dynamodb.Selector)
+	Predicate func(*dynamodb.Selector)
+
+	Item   func() interface{}
+	Assign func([]map[string]types.AttributeValue) error
+}
+
+func (q *query) nodes(ctx context.Context, drv dialect.Driver) error {
+	selector, err := q.selector()
+	if err != nil {
+		return err
+	}
+	op, args := selector.Op()
+	var output sdk.ScanOutput
+	if err := drv.Query(ctx, op, args, &output); err != nil {
+		return err
+	}
+	return q.Assign(output.Items)
+}
+
+func (q *query) selector() (*dynamodb.Selector, error) {
+	selector := dynamodb.Select().From(q.Node.Table)
+	if q.From != nil {
+		selector = q.From
+	}
+	if pred := q.Predicate; pred != nil {
+		pred(selector)
+	}
+	if order := q.Order; order != nil {
+		order(selector)
+	}
+	selector.BuildExpressions()
+	return selector, selector.Err()
+}
+
+// CountNodes counts the nodes in the given graph query.
+func CountNodes(ctx context.Context, drv dialect.Driver, spec *QuerySpec) (int, error) {
+	qr := &query{graph: graph{}, QuerySpec: spec}
+	return qr.count(ctx, drv)
+}
+
+func (q *query) count(ctx context.Context, drv dialect.Driver) (int, error) {
+	selector, err := q.selector()
+	if err != nil {
+		return 0, err
+	}
+	op, args := selector.Op()
+	var output sdk.ScanOutput
+	if err := drv.Query(ctx, op, args, &output); err != nil {
+		return 0, err
+	}
+	return int(output.Count), nil
 }

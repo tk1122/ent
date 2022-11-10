@@ -12,6 +12,15 @@ in the LICENSE file in the root directory of this source tree.
 		{{- $f := $fk.Field }}
 		{{ $fk.StructField }} {{ if $f.Nillable }}*{{ end }}{{ $f.Type }}
 	{{- end }}
+
+	{{- with $.NumM2M }}
+		{{- range $e := $.Edges }}
+			{{- if $e.M2M }}
+				{{ $e.Key }} []{{ $e.Type.ID.Type }}
+			{{- end }}
+		{{- end }}
+	{{- end }}
+	
 	{{- /* Allow adding struct fields by ent extensions or user templates.*/}}
 	{{- with $tmpls := matchTemplate "dialect/dynamodb/model/fields/*"  }}
 		{{- range $tmpl := $tmpls }}

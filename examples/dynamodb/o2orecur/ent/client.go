@@ -7,13 +7,17 @@
 package ent
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/o2orecur/ent/migrate"
 
+	"entgo.io/ent/examples/dynamodb/o2orecur/ent/node"
+
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/dynamodb"
+	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 )
 
 // Client is the client that holds all ent builders.
@@ -66,10 +70,69 @@ func NewNodeClient(c config) *NodeClient {
 	return &NodeClient{config: c}
 }
 
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `node.Hooks(f(g(h())))`.
+func (c *NodeClient) Use(hooks ...Hook) {
+	c.hooks.Node = append(c.hooks.Node, hooks...)
+}
+
 // Create returns a builder for creating a Node entity.
 func (c *NodeClient) Create() *NodeCreate {
 	mutation := newNodeMutation(c.config, OpCreate)
 	return &NodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for Node.
+func (c *NodeClient) Query() *NodeQuery {
+	return &NodeQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a Node entity by its id.
+func (c *NodeClient) Get(ctx context.Context, id int) (*Node, error) {
+	return c.Query().Where(node.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NodeClient) GetX(ctx context.Context, id int) *Node {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryPrev queries the prev edge of a Node.
+func (c *NodeClient) QueryPrev(n *Node) *NodeQuery {
+	query := &NodeQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := n.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(node.Table, node.FieldID, id),
+			dynamodbgraph.To(node.Table, node.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, node.PrevTable, node.PrevAttribute),
+		)
+		fromV = dynamodbgraph.Neighbors(step, n.config.driver)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryNext queries the next edge of a Node.
+func (c *NodeClient) QueryNext(n *Node) *NodeQuery {
+	query := &NodeQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := n.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(node.Table, node.FieldID, id),
+			dynamodbgraph.To(node.Table, node.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, node.NextTable, node.NextAttribute),
+		)
+		fromV = dynamodbgraph.Neighbors(step, n.config.driver)
+		return fromV, nil
+	}
+	return query
 }
 
 // Hooks returns the client hooks.

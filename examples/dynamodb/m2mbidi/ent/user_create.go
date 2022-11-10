@@ -185,7 +185,7 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 			Rel:        dynamodbgraph.M2M,
 			Inverse:    false,
 			Table:      user.FriendsTable,
-			Attributes: user.FriendsAttribute,
+			Attributes: user.FriendsAttributes,
 			Bidi:       true,
 			Target: &dynamodbgraph.EdgeTarget{
 				IDSpec: &dynamodbgraph.FieldSpec{

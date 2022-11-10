@@ -7,13 +7,18 @@
 package ent
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/o2o2types/ent/migrate"
 
+	"entgo.io/ent/examples/dynamodb/o2o2types/ent/card"
+	"entgo.io/ent/examples/dynamodb/o2o2types/ent/user"
+
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/dynamodb"
+	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 )
 
 // Client is the client that holds all ent builders.
@@ -69,10 +74,53 @@ func NewCardClient(c config) *CardClient {
 	return &CardClient{config: c}
 }
 
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `card.Hooks(f(g(h())))`.
+func (c *CardClient) Use(hooks ...Hook) {
+	c.hooks.Card = append(c.hooks.Card, hooks...)
+}
+
 // Create returns a builder for creating a Card entity.
 func (c *CardClient) Create() *CardCreate {
 	mutation := newCardMutation(c.config, OpCreate)
 	return &CardCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for Card.
+func (c *CardClient) Query() *CardQuery {
+	return &CardQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a Card entity by its id.
+func (c *CardClient) Get(ctx context.Context, id int) (*Card, error) {
+	return c.Query().Where(card.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CardClient) GetX(ctx context.Context, id int) *Card {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryOwner queries the owner edge of a Card.
+func (c *CardClient) QueryOwner(ca *Card) *UserQuery {
+	query := &UserQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := ca.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(card.Table, card.FieldID, id),
+			dynamodbgraph.To(user.Table, user.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, card.OwnerTable, card.OwnerAttribute),
+		)
+		fromV = dynamodbgraph.Neighbors(step, ca.config.driver)
+		return fromV, nil
+	}
+	return query
 }
 
 // Hooks returns the client hooks.
@@ -90,10 +138,53 @@ func NewUserClient(c config) *UserClient {
 	return &UserClient{config: c}
 }
 
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `user.Hooks(f(g(h())))`.
+func (c *UserClient) Use(hooks ...Hook) {
+	c.hooks.User = append(c.hooks.User, hooks...)
+}
+
 // Create returns a builder for creating a User entity.
 func (c *UserClient) Create() *UserCreate {
 	mutation := newUserMutation(c.config, OpCreate)
 	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for User.
+func (c *UserClient) Query() *UserQuery {
+	return &UserQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a User entity by its id.
+func (c *UserClient) Get(ctx context.Context, id int) (*User, error) {
+	return c.Query().Where(user.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UserClient) GetX(ctx context.Context, id int) *User {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCard queries the card edge of a User.
+func (c *UserClient) QueryCard(u *User) *CardQuery {
+	query := &CardQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := u.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(user.Table, user.FieldID, id),
+			dynamodbgraph.To(card.Table, card.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, user.CardTable, user.CardAttribute),
+		)
+		fromV = dynamodbgraph.Neighbors(step, u.config.driver)
+		return fromV, nil
+	}
+	return query
 }
 
 // Hooks returns the client hooks.

@@ -7,13 +7,17 @@
 package ent
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/m2mbidi/ent/migrate"
 
+	"entgo.io/ent/examples/dynamodb/m2mbidi/ent/user"
+
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/dynamodb"
+	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 )
 
 // Client is the client that holds all ent builders.
@@ -66,10 +70,53 @@ func NewUserClient(c config) *UserClient {
 	return &UserClient{config: c}
 }
 
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `user.Hooks(f(g(h())))`.
+func (c *UserClient) Use(hooks ...Hook) {
+	c.hooks.User = append(c.hooks.User, hooks...)
+}
+
 // Create returns a builder for creating a User entity.
 func (c *UserClient) Create() *UserCreate {
 	mutation := newUserMutation(c.config, OpCreate)
 	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for User.
+func (c *UserClient) Query() *UserQuery {
+	return &UserQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a User entity by its id.
+func (c *UserClient) Get(ctx context.Context, id int) (*User, error) {
+	return c.Query().Where(user.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UserClient) GetX(ctx context.Context, id int) *User {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryFriends queries the friends edge of a User.
+func (c *UserClient) QueryFriends(u *User) *UserQuery {
+	query := &UserQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := u.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(user.Table, user.FieldID, id),
+			dynamodbgraph.To(user.Table, user.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, user.FriendsTable, user.FriendsAttributes...),
+		)
+		fromV = dynamodbgraph.Neighbors(step, u.config.driver)
+		return fromV, nil
+	}
+	return query
 }
 
 // Hooks returns the client hooks.

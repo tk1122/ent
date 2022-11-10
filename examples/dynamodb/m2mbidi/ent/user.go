@@ -6,6 +6,14 @@
 
 package ent
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+)
+
 // User is the model entity for the User schema.
 type User struct {
 	config `json:"-"`
@@ -17,7 +25,8 @@ type User struct {
 	Name string `json:"name,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
-	Edges UserEdges `json:"edges"`
+	Edges     UserEdges `json:"edges"`
+	friend_id []int
 }
 
 // UserEdges holds the relations/edges for other nodes in the graph.
@@ -27,4 +36,62 @@ type UserEdges struct {
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
+}
+
+// UserItem represents item schema in MongoDB.
+type UserItem struct {
+	ID   int    `dynamodbav:"id"`
+	Age  int    `dynamodbav:"age"`
+	Name string `dynamodbav:"name"`
+
+	FriendID []int `dynamodbav:"friend_id"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*User) item() interface{} {
+	return &UserItem{}
+}
+
+// FromItem scans the dynamodb response item into User.
+func (u *User) FromItem(item interface{}) error {
+	var userItem UserItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &userItem)
+	if err != nil {
+		return err
+	}
+	u.ID = userItem.ID
+	u.Age = userItem.Age
+	u.Name = userItem.Name
+
+	u.friend_id = userItem.FriendID
+
+	return nil
+}
+
+// QueryFriends queries the "friends" edge of the User entity.
+func (u *User) QueryFriends() *UserQuery {
+	return (&UserClient{config: u.config}).QueryFriends(u)
+}
+
+// String implements the fmt.Stringer.
+func (u *User) String() string {
+	var builder strings.Builder
+	builder.WriteString("User(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", u.ID))
+	builder.WriteString("age=")
+	builder.WriteString(fmt.Sprintf("%v", u.Age))
+	builder.WriteString(", ")
+	builder.WriteString("name=")
+	builder.WriteString(u.Name)
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Users is a parsable slice of User.
+type Users []*User
+
+func (u Users) config(cfg config) {
+	for _i := range u {
+		u[_i].config = cfg
+	}
 }

@@ -12,8 +12,8 @@ import (
 	"fmt"
 
 	"entgo.io/ent/examples/dynamodb/m2m2types/ent/group"
+	"entgo.io/ent/examples/dynamodb/m2m2types/ent/predicate"
 	"entgo.io/ent/examples/dynamodb/m2m2types/ent/user"
-	"entgo.io/ent/examples/start/ent/predicate"
 
 	"entgo.io/ent"
 )
