@@ -214,9 +214,11 @@ func (g *graph) clearFKEdges(ctx context.Context, ids []interface{}, edges []*Ed
 		if edge.Rel == O2O && edge.Inverse {
 			continue
 		}
-		inverseQuery := dynamodb.Select().From(edge.Table).Where(dynamodb.EQ(edge.Target.IDSpec.Key, id)).BuildExpressions()
-		if edge.Rel == O2O && edge.Bidi {
+		var inverseQuery *dynamodb.Selector
+		if (edge.Rel == O2O && edge.Bidi) || edge.Rel == O2M {
 			inverseQuery = dynamodb.Select().From(edge.Table).Where(dynamodb.EQ(edge.Attributes[0], id)).BuildExpressions()
+		} else {
+			inverseQuery = dynamodb.Select().From(edge.Table).Where(dynamodb.EQ(edge.Target.IDSpec.Key, id)).BuildExpressions()
 		}
 		op, input := inverseQuery.Op()
 		var output sdk.ScanOutput
