@@ -82,6 +82,24 @@ func (c *NodeClient) Create() *NodeCreate {
 	return &NodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
+// Update returns an update builder for Node.
+func (c *NodeClient) Update() *NodeUpdate {
+	mutation := newNodeMutation(c.config, OpUpdate)
+	return &NodeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NodeClient) UpdateOne(n *Node) *NodeUpdateOne {
+	mutation := newNodeMutation(c.config, OpUpdateOne, withNode(n))
+	return &NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NodeClient) UpdateOneID(id int) *NodeUpdateOne {
+	mutation := newNodeMutation(c.config, OpUpdateOne, withNodeID(id))
+	return &NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
 // Query returns a query builder for Node.
 func (c *NodeClient) Query() *NodeQuery {
 	return &NodeQuery{
