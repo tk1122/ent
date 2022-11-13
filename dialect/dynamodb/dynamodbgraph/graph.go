@@ -145,7 +145,7 @@ func (c *creator) insert(ctx context.Context) (err error) {
 	if c.CreateSpec.ID != nil {
 		fields = append(fields, c.CreateSpec.ID)
 	}
-	if err = setTableAttributes(fields, edges, c.data); err != nil {
+	if err = c.setItemAttributes(fields, edges); err != nil {
 		return err
 	}
 	putItemBuilder.SetItem(c.data)
@@ -153,21 +153,20 @@ func (c *creator) insert(ctx context.Context) (err error) {
 	return c.tx.Exec(ctx, op, args, nil)
 }
 
-// setTableAttributes is shared between updater and creator.
-func setTableAttributes(fields []*FieldSpec, edges map[Rel][]*EdgeSpec, data map[string]types.AttributeValue) (err error) {
+func (c *creator) setItemAttributes(fields []*FieldSpec, edges map[Rel][]*EdgeSpec) (err error) {
 	for _, f := range fields {
-		if data[f.Key], err = attributevalue.Marshal(f.Value); err != nil {
+		if c.data[f.Key], err = attributevalue.Marshal(f.Value); err != nil {
 			return err
 		}
 	}
 	for _, e := range edges[M2O] {
-		if data[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
+		if c.data[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
 			return err
 		}
 	}
 	for _, e := range edges[O2O] {
 		if e.Inverse || e.Bidi {
-			if data[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
+			if c.data[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
 				return err
 			}
 		}
@@ -195,7 +194,7 @@ func (g *graph) addFKEdges(ctx context.Context, ids []interface{}, edges []*Edge
 				WithKey(edge.Target.IDSpec.Key, keyVal).
 				Set(edge.Attributes[0], id).
 				Where(dynamodb.NotExist(edge.Attributes[0])).
-				Query(types.ReturnValueAllNew)
+				BuildExpression(types.ReturnValueAllNew)
 			if err != nil {
 				return fmt.Errorf("build update query for table %s: %w", edge.Table, err)
 			}
@@ -207,6 +206,38 @@ func (g *graph) addFKEdges(ctx context.Context, ids []interface{}, edges []*Edge
 		}
 	}
 	return nil
+}
+
+func (g *graph) clearFKEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec) error {
+	id := ids[0]
+	for _, edge := range edges {
+		if edge.Rel == O2O && edge.Inverse {
+			continue
+		}
+		allCardsSelector := dynamodb.Select().From(edge.Table).Where(dynamodb.EQ(edge.Target.IDSpec.Key, id)).BuildExpressions()
+		op, input := allCardsSelector.Op()
+		var output sdk.ScanOutput
+		if err := g.tx.Exec(ctx, op, input, &output); err != nil {
+			return fmt.Errorf("remove %s edge for table %s: %w", edge.Rel, edge.Table, err)
+		}
+		for _, item := range output.Items {
+			query, err := g.Update(edge.Table).
+				WithKey(edge.Target.IDSpec.Key, item[edge.Target.IDSpec.Key]).
+				Remove(edge.Attributes[0]).
+				BuildExpression(types.ReturnValueAllNew)
+			if err != nil {
+				return fmt.Errorf("remove %s edge for table %s: %w", edge.Rel, edge.Table, err)
+			}
+			op, input := query.Op()
+			var output sdk.UpdateItemOutput
+			if err := g.tx.Exec(ctx, op, input, &output); err != nil {
+				return fmt.Errorf("remove %s edge for table %s: %w", edge.Rel, edge.Table, err)
+			}
+		}
+
+	}
+	return nil
+
 }
 
 func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec) (err error) {
@@ -637,4 +668,251 @@ func (q *query) count(ctx context.Context, drv dialect.Driver) (int, error) {
 		return 0, err
 	}
 	return int(output.Count), nil
+}
+
+type (
+	// EdgeMut defines edge mutations.
+	EdgeMut struct {
+		Add   []*EdgeSpec
+		Clear []*EdgeSpec
+	}
+
+	// FieldMut defines field mutations.
+	FieldMut struct {
+		Set   []*FieldSpec // field = ?
+		Add   []*FieldSpec // field = field + ?
+		Clear []*FieldSpec // field = NULL
+	}
+
+	// UpdateSpec holds the information for updating one
+	// or more nodes in the graph.
+	UpdateSpec struct {
+		Node      *NodeSpec
+		Edges     EdgeMut
+		Fields    FieldMut
+		Predicate func(*dynamodb.Selector)
+
+		Item   func() interface{}
+		Assign func(interface{}) error
+	}
+)
+
+// UpdateNode applies the UpdateSpec on one node in the graph.
+func UpdateNode(ctx context.Context, drv dialect.Driver, spec *UpdateSpec) error {
+	tx, err := drv.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	gr := graph{tx: tx}
+	cr := &updater{UpdateSpec: spec, graph: gr}
+	if err := cr.node(ctx, tx); err != nil {
+		return rollback(tx, err)
+	}
+	return tx.Commit()
+}
+
+// UpdateNodes applies the UpdateSpec on a set of nodes in the graph.
+func UpdateNodes(ctx context.Context, drv dialect.Driver, spec *UpdateSpec) (int, error) {
+	tx, err := drv.Tx(ctx)
+	if err != nil {
+		return 0, err
+	}
+	gr := graph{tx: tx}
+	cr := &updater{UpdateSpec: spec, graph: gr}
+	affected, err := cr.nodes(ctx, tx)
+	if err != nil {
+		return 0, rollback(tx, err)
+	}
+	return affected, tx.Commit()
+}
+
+// NotFoundError returns when trying to update an
+// entity and it was not found in the database.
+type NotFoundError struct {
+	table string
+	id    interface{}
+}
+
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("record with id %v not found in table %s", e.id, e.table)
+}
+
+type updater struct {
+	graph
+	*UpdateSpec
+}
+
+func (u *updater) node(ctx context.Context, tx dialect.ExecQuerier) (err error) {
+	updateItemBuilder := u.Update(u.Node.Table)
+	if err = u.update(ctx, updateItemBuilder); err != nil {
+		return err
+	}
+	updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
+	if err != nil {
+		return err
+	}
+	op, args := updateItemBuilder.Op()
+	var output sdk.UpdateItemOutput
+	err = u.tx.Exec(ctx, op, args, &output)
+	if err != nil {
+		return err
+	}
+	return u.Assign(output.Attributes)
+}
+
+// update returns potential errors during process of marshaling UpdateSpec
+// to DynamoBD attributes and build steps in dynamodb.UpdateItemBuilder.
+func (u *updater) update(ctx context.Context, builder *dynamodb.UpdateItemBuilder) (err error) {
+	var (
+		// id holds the PK of the node used for linking
+		// it with the other nodes.
+		id         = u.Node.ID.Value
+		addEdges   = EdgeSpecs(u.Edges.Add).GroupRel()
+		clearEdges = EdgeSpecs(u.Edges.Clear).GroupRel()
+	)
+	keyVal, err := attributevalue.Marshal(id)
+	if err != nil {
+		return fmt.Errorf("key type not supported: %v has type %T", id, id)
+	}
+	builder.WithKey(u.Node.ID.Key, keyVal)
+	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, builder)
+	u.setClearEdges(ctx, u.Fields.Clear, clearEdges, builder)
+	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
+		return err
+	}
+	if err := u.graph.addFKEdges(ctx, []interface{}{id}, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error) {
+	//var (
+	//	ids        []interface{}
+	//	addEdges   = EdgeSpecs(u.Edges.Add).GroupRel()
+	//	clearEdges = EdgeSpecs(u.Edges.Clear).GroupRel()
+	//)
+	//selector := mongo.Select(u.Node.ID.Key).
+	//	From(u.Node.Collection)
+	//if pred := u.Predicate; pred != nil {
+	//	pred(selector)
+	//}
+	//
+	//var cur *mongo.Cursor
+	//op, args := selector.Op()
+	//if err := tx.BuildExpression(ctx, op, args, &cur); err != nil {
+	//	return 0, ferrs.Wrap(err)
+	//}
+	//
+	//for cur.Next(ctx) {
+	//	doc := make(bson.M)
+	//	if err := cur.Decode(&doc); err != nil {
+	//		return 0, ferrs.Wrap(err)
+	//	}
+	//
+	//	ids = append(ids, doc[u.Node.ID.Key])
+	//}
+	//if err := cur.Err(); err != nil {
+	//	return 0, ferrs.Wrap(err)
+	//}
+	//if err := cur.Close(ctx); err != nil {
+	//	return 0, ferrs.Wrap(err)
+	//}
+	//if len(ids) == 0 {
+	//	return 0, nil
+	//}
+	//
+	//bulkWrite := mongo.BulkWrite()
+	//update := mongo.Update(u.Node.Collection).Where(matchID(u.Node.ID.Key, ids))
+	//u.setDocumentFields(update)
+	//u.setAddEdges(ctx, ids, addEdges, update)
+	//if !update.IsEmpty() {
+	//	bulkWrite.Append(update)
+	//}
+	//
+	//u.setClearEdges(ctx, ids, clearEdges, bulkWrite)
+	//
+	//if err := u.setExternalEdges(ctx, ids, addEdges, clearEdges, bulkWrite); err != nil {
+	//	return 0, ferrs.Wrap(err)
+	//}
+	//
+	//return len(ids), nil
+	return 0, nil
+}
+
+//func (u *updater) setClearEdges(ctx context.Context, ids []interface{}, clearEdges map[Rel][]*EdgeSpec, bulkWrite *dynamodb.BulkWriteBuilder) {
+//	updateClearEdges := mongo.Update(u.Node.Collection).Where(matchID(u.Node.ID.Key, ids))
+//	for _, fi := range u.Fields.Clear {
+//		updateClearEdges.Unset(fi.Key)
+//	}
+//	for _, e := range clearEdges[M2O] {
+//		updateClearEdges.Unset(e.Keys[0])
+//	}
+//	for _, e := range clearEdges[O2O] {
+//		if e.Inverse || e.Bidi {
+//			updateClearEdges.Unset(e.Keys[0])
+//		}
+//	}
+//	for _, e := range clearEdges[M2M] {
+//		fi := e.Key()
+//		if e.Target.Nodes != nil {
+//			updateClearEdges.PullAll(fi, e.Target.Nodes...)
+//		} else {
+//			updateClearEdges.Unset(fi)
+//		}
+//	}
+//
+//	if !updateClearEdges.IsEmpty() {
+//		bulkWrite.Append(updateClearEdges)
+//	}
+//}
+//
+//func (u *updater) setExternalEdges(ctx context.Context, ids []interface{}, addEdges, clearEdges map[Rel][]*EdgeSpec, bulkWrite *mongo.BulkWriteBuilder) error {
+//	if err := u.graph.clearExternalM2MEdges(ctx, ids, clearEdges[M2M], bulkWrite); err != nil {
+//		return err
+//	}
+//	if err := u.graph.addExternalM2MEdges(ctx, ids, addEdges[M2M], bulkWrite); err != nil {
+//		return err
+//	}
+//	if err := u.graph.clearFKEdges(ctx, ids, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
+//		return err
+//	}
+//	if err := u.graph.addFKEdges(ctx, ids, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
+//		return err
+//	}
+//	return nil
+//}
+
+func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldSpec, addEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
+	for _, f := range fields {
+		update.Set(f.Key, f.Value)
+	}
+	for _, e := range addEdges[M2O] {
+		update.Set(e.Attributes[0], e.Target.Nodes[0])
+	}
+	for _, e := range addEdges[O2O] {
+		if e.Inverse || e.Bidi {
+			update.Set(e.Attributes[0], e.Target.Nodes[0])
+		}
+	}
+	//for _, e := range addEdges[M2M] {
+	//	update.AddToSet(e.Key(), e.Target.Nodes[0])
+	//}
+}
+
+func (u *updater) setClearEdges(ctx context.Context, fields []*FieldSpec, clearEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
+	for _, f := range fields {
+		update.Remove(f.Key)
+	}
+	for _, e := range clearEdges[M2O] {
+		update.Remove(e.Attributes[0])
+	}
+	for _, e := range clearEdges[O2O] {
+		if e.Inverse || e.Bidi {
+			update.Remove(e.Attributes[0])
+		}
+	}
+	//for _, e := range addEdges[M2M] {
+	//	update.AddToSet(e.Key(), e.Target.Nodes[0])
+	//}
 }
