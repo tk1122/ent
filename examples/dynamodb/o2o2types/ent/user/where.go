@@ -244,8 +244,8 @@ func HasCard() predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(CardAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, CardAttribute, CardAttribute),
+			dynamodbgraph.To(CardTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, CardTable, CardAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})
