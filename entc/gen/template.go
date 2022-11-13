@@ -53,10 +53,10 @@ var (
 				"dialect/*/create_bulk/fields/additional/*",
 			},
 		},
-		//{
-		//	Name:   "update",
-		//	Format: pkgf("%s_update.go"),
-		//},
+		{
+			Name:   "update",
+			Format: pkgf("%s_update.go"),
+		},
 		//{
 		//	Name:   "delete",
 		//	Format: pkgf("%s_delete.go"),

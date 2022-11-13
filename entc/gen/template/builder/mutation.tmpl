@@ -95,7 +95,6 @@ func new{{ $mutation }}(c config, op Op, opts ...{{ $mutationOption }}) *{{ $mut
 
 {{ with $n.HasOneFieldID }}
 	{{ $opt := print "with" $n.Name "ID" }}
-	{{ if ne $.Config.Storage.Name "dynamodb"}}
 	// {{ $opt }} sets the ID field of the mutation.
 	func {{ $opt }}(id {{ $n.ID.Type }}) {{ $mutationOption }} {
 		return func(m *{{ $mutation }}) {
@@ -117,7 +116,6 @@ func new{{ $mutation }}(c config, op Op, opts ...{{ $mutationOption }}) *{{ $mut
 			m.{{ $n.ID.BuilderField }} = &id
 		}
 	}
-	{{ end }}
 
 	{{ $opt = print "with" $n.Name }}
 	// {{ $opt }} sets the old {{ $n.Name }} of the mutation.
