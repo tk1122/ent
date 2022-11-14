@@ -296,11 +296,16 @@ func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*E
 		m2mTable := e.Table
 		id := ids[0]
 		partitionKey, sortKey := e.Attributes[0], e.Attributes[1]
-		filterAttr := partitionKey
-		if e.Inverse {
-			filterAttr = sortKey
+		var joinTableQuery *dynamodb.Selector
+		if e.Bidi {
+			joinTableQuery = dynamodb.Select().From(e.Table).Where(dynamodb.Or(dynamodb.EQ(partitionKey, id), dynamodb.EQ(sortKey, id))).BuildExpressions()
+		} else {
+			filterAttr := partitionKey
+			if e.Inverse {
+				filterAttr = sortKey
+			}
+			joinTableQuery = dynamodb.Select().From(e.Table).Where(dynamodb.EQ(filterAttr, id)).BuildExpressions()
 		}
-		joinTableQuery := dynamodb.Select().From(e.Table).Where(dynamodb.EQ(filterAttr, id)).BuildExpressions()
 		op, input := joinTableQuery.Op()
 		var output sdk.ScanOutput
 		if err := g.tx.Exec(ctx, op, input, &output); err != nil {
