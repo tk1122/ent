@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"entgo.io/ent/examples/dynamodb/o2m2types/ent/pet"
 	"entgo.io/ent/examples/dynamodb/o2m2types/ent/predicate"
@@ -63,6 +64,28 @@ func newPetMutation(c config, op Op, opts ...petOption) *PetMutation {
 		opt(m)
 	}
 	return m
+}
+
+// withPetID sets the ID field of the mutation.
+func withPetID(id int) petOption {
+	return func(m *PetMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Pet
+		)
+		m.oldValue = func(ctx context.Context) (*Pet, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Pet.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
 }
 
 // withPet sets the old Pet of the mutation.
@@ -398,6 +421,28 @@ func newUserMutation(c config, op Op, opts ...userOption) *UserMutation {
 		opt(m)
 	}
 	return m
+}
+
+// withUserID sets the ID field of the mutation.
+func withUserID(id int) userOption {
+	return func(m *UserMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *User
+		)
+		m.oldValue = func(ctx context.Context) (*User, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().User.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
 }
 
 // withUser sets the old User of the mutation.

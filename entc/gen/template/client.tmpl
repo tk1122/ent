@@ -175,6 +175,7 @@ func (c *{{ $client }}) Create() *{{ $n.CreateName }} {
 func (c *{{ $client }}) CreateBulk(builders ...*{{ $n.CreateName }}) *{{ $n.CreateBulkName }} {
 	return &{{ $n.CreateBulkName }}{config: c.config, builders: builders}
 }
+{{ end }}
 
 // Update returns an update builder for {{ $n.Name }}.
 func (c *{{ $client }}) Update() *{{ $n.UpdateName }} {
@@ -202,7 +203,7 @@ func (c *{{ $client }}) UpdateOne({{ $rec }} *{{ $n.Name }}) *{{ $n.UpdateOneNam
 		return &{{ $n.UpdateOneName }}{config: c.config, hooks: c.Hooks(), mutation: mutation}
 	}
 {{ end }}
-
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 // Delete returns a delete builder for {{ $n.Name }}.
 func (c *{{ $client }}) Delete() *{{ $n.DeleteName }} {
 	mutation := new{{ $n.MutationName }}(c.config, OpDelete)

@@ -6,6 +6,128 @@ in the LICENSE file in the root directory of this source tree.
 
 {{/* gotype: entgo.io/ent/entc/gen.typeScope*/}}
 
+{{ define "dialect/dynamodb/update" }}
+{{ $pkg := $.Scope.Package }}
+{{ $builder := pascal $.Scope.Builder }}
+{{ $receiver := receiver $builder }}
+{{ $mutation := print $receiver ".mutation" }}
+{{ $one := hasSuffix $builder "One" }}
+{{- $zero := 0 }}{{ if $one }}{{ $zero = "nil" }}{{ end }}
+{{- $ret := "n" }}{{ if $one }}{{ $ret = "_node" }}{{ end }}
+
+func ({{ $receiver }} *{{ $builder }}) dynamodbSave(ctx context.Context) ({{ $ret }} {{ if $one }}*{{ $.Name }}{{ else }}int{{ end }}, err error) {
+	_spec := &dynamodbgraph.UpdateSpec{
+		Node: &dynamodbgraph.NodeSpec{
+			Table: {{ $.Package }}.Table,
+			Keys: {{ $.Package }}.Keys,
+			ID: &dynamodbgraph.FieldSpec{
+				Type: field.{{ $.ID.Type.ConstName }},
+				Key: {{ $.Package }}.{{ $.ID.Constant }},
+			},
+		},
+	}
+	{{- if $one }}
+		id, ok := {{ $mutation }}.{{ $.ID.MutationGet }}()
+		if !ok {
+			return {{ $zero }}, &ValidationError{Name: "ID", err: fmt.Errorf("missing {{ $.Name }}.ID for update")}
+		}
+		_spec.Node.ID.Value = id
+		if fields := {{ $receiver }}.fields; len(fields) > 0 {
+			_spec.Node.Keys = make([]string, 0, len(fields))
+			_spec.Node.Keys = append(_spec.Node.Keys, {{ $.Package }}.{{ $.ID.Constant }})
+			for _, f := range fields {
+				if !{{ $.Package }}.ValidKey(f) {
+					return nil, &ValidationError{Name: f, err: fmt.Errorf("{{ $pkg }}: invalid field %q for query", f)}
+				}
+				if f != {{ $.Package }}.{{ $.ID.Constant }} {
+					_spec.Node.Keys = append(_spec.Node.Keys, f)
+				}
+			}
+		}
+	{{- else }}
+		if ps := {{ $mutation }}.predicates; len(ps) > 0 {
+			_spec.Predicate = func(selector *dynamodb.Selector) {
+				for i := range ps {
+					ps[i](selector)
+				}
+			}
+		}
+	{{- end }}
+	{{- range $f := $.MutationFields }}
+			{{- if or (not $f.Immutable) $f.UpdateDefault }}
+				if value, ok := {{ $mutation }}.{{ $f.MutationGet }}(); ok {
+					_spec.Fields.Set = append(_spec.Fields.Set, &dynamodbgraph.FieldSpec{
+						Type: field.{{ $f.Type.ConstName }},
+						Value: value,
+						Key: {{ $.Package }}.{{ $f.Constant }},
+					})
+				}
+				{{- if and $f.Type.Numeric $f.ConvertedToBasic }}
+					if value, ok := {{ $mutation }}.Added{{ $f.StructField }}(); ok {
+						_spec.Fields.Add = append(_spec.Fields.Add, &dynamodbgraph.FieldSpec{
+							Type: field.{{ $f.Type.ConstName }},
+							Value: value,
+							Key: {{ $.Package }}.{{ $f.Constant }},
+						})
+					}
+				{{- end }}
+			{{- end }}
+			{{- if $f.Optional }}
+				if {{ $mutation }}.{{ $f.StructField }}Cleared() {
+					_spec.Fields.Clear = append(_spec.Fields.Clear, &dynamodbgraph.FieldSpec{
+						Type: field.{{ $f.Type.ConstName }},
+						Key: {{ $.Package }}.{{ $f.Constant }},
+					})
+				}
+			{{- end }}
+	{{- end }}
+	{{- range $e := $.Edges }}
+		if {{ $mutation }}.{{ $e.MutationCleared }}() {
+			{{- with extend $ "Edge" $e }}
+				{{ template "dialect/dynamodb/defedge" . }}
+			{{- end }}
+			_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+		}
+		{{- if not $e.Unique }}
+			if nodes := {{ $mutation }}.Removed{{ $e.StructField }}IDs(); len(nodes) > 0 && !{{ $mutation }}.{{ $e.MutationCleared }}() {
+				{{- with extend $ "Edge" $e "Nodes" true "Zero" $zero }}
+					{{ template "dialect/dynamodb/defedge" . }}
+				{{- end }}
+				_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+			}
+		{{- end }}
+		if nodes := {{ $mutation }}.{{ $e.StructField }}IDs(); len(nodes) > 0 {
+			{{- with extend $ "Edge" $e "Nodes" true "Zero" $zero }}
+				{{ template "dialect/dynamodb/defedge" . }}
+			{{- end }}
+			_spec.Edges.Add = append(_spec.Edges.Add, edge)
+		}
+	{{- end }}
+
+	{{- if $one }}
+	_spec.Item = _node.item
+	_spec.Assign = func(item interface{}) error {
+		_node = &{{ $.Name }}{}
+		if err := _node.FromItem(item); err != nil {
+			return err
+		}
+		_node.config = {{ $receiver }}.config
+
+		return nil
+	}
+	{{- end }}
+
+	{{- if $one }}
+		if err = dynamodbgraph.UpdateNode(ctx, {{ $receiver }}.driver, _spec); err != nil {
+	{{- else }}
+		if {{ $ret }}, err = dynamodbgraph.UpdateNodes(ctx, {{ $receiver }}.driver, _spec); err != nil {
+	{{- end }}
+		return {{ $zero }}, err
+	}
+	return {{ $ret }}, nil
+}
+{{ end }}
+
 {{ define "dialect/dynamodb/defedge" }}
 	{{- $e := $.Scope.Edge -}}
 	edge := &dynamodbgraph.EdgeSpec{

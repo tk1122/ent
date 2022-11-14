@@ -159,8 +159,8 @@ func HasPrev() predicate.Node {
 	return predicate.Node(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(PrevAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, PrevAttribute, PrevAttribute),
+			dynamodbgraph.To(PrevTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, PrevTable, PrevAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})
@@ -187,8 +187,8 @@ func HasNext() predicate.Node {
 	return predicate.Node(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(NextAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, NextAttribute, NextAttribute),
+			dynamodbgraph.To(NextTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, NextTable, NextAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})

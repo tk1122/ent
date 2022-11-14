@@ -244,8 +244,8 @@ func HasSpouse() predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(SpouseAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, SpouseAttribute, SpouseAttribute),
+			dynamodbgraph.To(SpouseTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, SpouseTable, SpouseAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})

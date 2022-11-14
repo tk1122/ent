@@ -76,7 +76,7 @@ func (uq *UserQuery) QueryCard() *CardQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(user.Table, user.FieldID, selector),
 			dynamodbgraph.To(card.Table, card.FieldID, card.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, user.CardAttribute, user.CardAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, user.CardTable, user.CardAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil

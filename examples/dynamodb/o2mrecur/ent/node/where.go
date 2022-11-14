@@ -159,8 +159,8 @@ func HasParent() predicate.Node {
 	return predicate.Node(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ParentAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, ParentAttribute, ParentAttribute),
+			dynamodbgraph.To(ParentTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, ParentTable, ParentAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})
@@ -187,8 +187,8 @@ func HasChildren() predicate.Node {
 	return predicate.Node(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ChildrenAttribute, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, ChildrenAttribute, ChildrenAttribute),
+			dynamodbgraph.To(ChildrenTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, ChildrenTable, ChildrenAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})

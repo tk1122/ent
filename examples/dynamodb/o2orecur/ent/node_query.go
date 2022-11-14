@@ -77,7 +77,7 @@ func (nq *NodeQuery) QueryPrev() *NodeQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(node.Table, node.FieldID, selector),
 			dynamodbgraph.To(node.Table, node.FieldID, node.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, node.PrevAttribute, node.PrevAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, node.PrevTable, node.PrevAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil
@@ -96,7 +96,7 @@ func (nq *NodeQuery) QueryNext() *NodeQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(node.Table, node.FieldID, selector),
 			dynamodbgraph.To(node.Table, node.FieldID, node.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, node.NextAttribute, node.NextAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, node.NextTable, node.NextAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil

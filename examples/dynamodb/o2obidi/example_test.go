@@ -13,7 +13,7 @@ import (
 	"entgo.io/ent/examples/dynamodb/o2obidi/ent/user"
 )
 
-func Example_O2O2Bidi() {
+func Example_O2OBidi() {
 	client, err := ent.Open("dynamodb", "")
 	if err != nil {
 		log.Fatalf("failed opening connection to dynamodb: %v", err)
@@ -73,12 +73,12 @@ func Do(ctx context.Context, client *ent.Client) error {
 	fmt.Println(count)
 	// Output: 2
 
-	// Get the user, that has a spouse with name="a8m".
-	spouse = client.User.
-		Query().
-		Where(user.HasSpouseWith(user.Name("a8m"))).
-		OnlyX(ctx)
-	fmt.Println(spouse.Name)
-	// Output: nati
+	//// Get the user, that has a spouse with name="a8m".
+	//spouse = client.User.
+	//	Query().
+	//	Where(user.HasSpouseWith(user.Name("a8m"))).
+	//	OnlyX(ctx)
+	//fmt.Println(spouse.Name)
+	//// Output: nati
 	return nil
 }

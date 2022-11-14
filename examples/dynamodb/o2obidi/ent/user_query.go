@@ -76,7 +76,7 @@ func (uq *UserQuery) QuerySpouse() *UserQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(user.Table, user.FieldID, selector),
 			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, user.SpouseAttribute, user.SpouseAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, user.SpouseTable, user.SpouseAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil

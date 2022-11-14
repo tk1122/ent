@@ -77,7 +77,7 @@ func (cq *CardQuery) QueryOwner() *UserQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(card.Table, card.FieldID, selector),
 			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, card.OwnerAttribute, card.OwnerAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, true, false, card.OwnerTable, card.OwnerAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil

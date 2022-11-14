@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"entgo.io/ent/examples/dynamodb/o2mrecur/ent/node"
 	"entgo.io/ent/examples/dynamodb/o2mrecur/ent/predicate"
@@ -65,6 +66,28 @@ func newNodeMutation(c config, op Op, opts ...nodeOption) *NodeMutation {
 		opt(m)
 	}
 	return m
+}
+
+// withNodeID sets the ID field of the mutation.
+func withNodeID(id int) nodeOption {
+	return func(m *NodeMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Node
+		)
+		m.oldValue = func(ctx context.Context) (*Node, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Node.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
 }
 
 // withNode sets the old Node of the mutation.

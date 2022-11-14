@@ -38,12 +38,21 @@ func (d RootBuilder) PutItem(tableName string) *PutItemBuilder {
 	}
 }
 
+// DeleteItem returns a builder for DeleteItem operation.
+func (d RootBuilder) DeleteItem(tableName string) *DeleteItemBuilder {
+	return &DeleteItemBuilder{
+		tableName: tableName,
+		key:       make(map[string]types.AttributeValue),
+	}
+}
+
 // Update returns a builder for UpdateItem operation.
 func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 	return &UpdateItemBuilder{
-		tableName:  tableName,
-		expBuilder: expression.NewBuilder(),
-		key:        make(map[string]types.AttributeValue),
+		tableName:          tableName,
+		expBuilder:         expression.NewBuilder(),
+		key:                make(map[string]types.AttributeValue),
+		updateAttributeMap: make(map[string]interface{}),
 	}
 }
 
@@ -53,6 +62,7 @@ const (
 	UpdateItemOperation  = "UpdateItem"
 	BatchWriteOperation  = "BatchWrite"
 	ScanOperation        = "ScanOperation"
+	DeletItemOperation   = "DeleteItemOperation"
 )
 
 type (
@@ -141,13 +151,15 @@ func (p *PutItemBuilder) Op() (string, interface{}) {
 }
 
 type (
-	// UpdateItemBuilder is the builder for UpdateItemArg.
+	// UpdateItemBuilder is the builder for UpdateItem operation.
 	UpdateItemBuilder struct {
-		tableName    string
-		key          map[string]types.AttributeValue
-		expBuilder   expression.Builder
-		exp          expression.Expression
-		returnValues types.ReturnValue
+		tableName          string
+		key                map[string]types.AttributeValue
+		updateAttributeMap map[string]interface{}
+		removeAttributes   []string
+		expBuilder         expression.Builder
+		exp                expression.Expression
+		returnValues       types.ReturnValue
 	}
 )
 
@@ -159,8 +171,13 @@ func (u *UpdateItemBuilder) WithKey(k string, v types.AttributeValue) *UpdateIte
 
 // Set sets the attribute to be updated.
 func (u *UpdateItemBuilder) Set(k string, v interface{}) *UpdateItemBuilder {
-	setExp := expression.Set(expression.Name(k), expression.Value(v))
-	u.expBuilder = u.expBuilder.WithUpdate(setExp)
+	u.updateAttributeMap[k] = v
+	return u
+}
+
+// Remove clears the attribute of the item.
+func (u *UpdateItemBuilder) Remove(k string) *UpdateItemBuilder {
+	u.removeAttributes = append(u.removeAttributes, k)
 	return u
 }
 
@@ -170,10 +187,30 @@ func (u *UpdateItemBuilder) Where(p *Predicate) *UpdateItemBuilder {
 	return u
 }
 
-// Query returns potential errors during UpdateItemBuilder's build process.
-func (u *UpdateItemBuilder) Query(rv types.ReturnValue) (*UpdateItemBuilder, error) {
+// BuildExpression returns potential errors during UpdateItemBuilder's build process.
+func (u *UpdateItemBuilder) BuildExpression(rv types.ReturnValue) (*UpdateItemBuilder, error) {
 	var err error
 	u.returnValues = rv
+	var setExp expression.UpdateBuilder
+	i := 0
+	for attr, val := range u.updateAttributeMap {
+		if i == 0 {
+			setExp = expression.Set(expression.Name(attr), expression.Value(val))
+		} else {
+			setExp = setExp.Set(expression.Name(attr), expression.Value(val))
+			expression.Remove(expression.Name(attr))
+		}
+		i += 1
+	}
+	for _, attr := range u.removeAttributes {
+		if i == 0 {
+			setExp = expression.Remove(expression.Name(attr))
+		} else {
+			setExp = setExp.Remove(expression.Name(attr))
+		}
+		i += 1
+	}
+	u.expBuilder = u.expBuilder.WithUpdate(setExp)
 	u.exp, err = u.expBuilder.Build()
 	return u, err
 }
@@ -220,6 +257,28 @@ func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) *BatchWriteIte
 func (b *BatchWriteItemBuilder) Op() (string, interface{}) {
 	return BatchWriteOperation, &BatchWriteItemArgs{
 		operationMap: b.requestMap,
+	}
+}
+
+type (
+	// DeleteItemBuilder is the builder for DeleteItem operation.
+	DeleteItemBuilder struct {
+		tableName string
+		key       map[string]types.AttributeValue
+	}
+)
+
+// WithKey selects which item to be deleted for the DeleteItem operation.
+func (u *DeleteItemBuilder) WithKey(k string, v types.AttributeValue) *DeleteItemBuilder {
+	u.key[k] = v
+	return u
+}
+
+// Op returns name and input for DeleteItem operation.
+func (u *DeleteItemBuilder) Op() (string, interface{}) {
+	return DeletItemOperation, &dynamodb.DeleteItemInput{
+		TableName: aws.String(u.tableName),
+		Key:       u.key,
 	}
 }
 
