@@ -242,7 +242,6 @@ func (g *graph) clearFKEdges(ctx context.Context, ids []interface{}, edges []*Ed
 
 	}
 	return nil
-
 }
 
 func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec) (err error) {
@@ -284,6 +283,39 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 	var output sdk.BatchWriteItemOutput
 	if err := g.tx.Exec(ctx, op, input, &output); err != nil {
 		return fmt.Errorf("add m2m edge: %w", err)
+	}
+	return nil
+}
+
+func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec) (err error) {
+	if len(edges) == 0 {
+		return nil
+	}
+	batchWrite := dynamodb.BatchWriteItem()
+	for _, e := range edges {
+		m2mTable := e.Table
+		id := ids[0]
+		partitionKey, sortKey := e.Attributes[0], e.Attributes[1]
+		filterAttr := partitionKey
+		if e.Inverse {
+			filterAttr = sortKey
+		}
+		joinTableQuery := dynamodb.Select().From(e.Table).Where(dynamodb.EQ(filterAttr, id)).BuildExpressions()
+		op, input := joinTableQuery.Op()
+		var output sdk.ScanOutput
+		if err := g.tx.Exec(ctx, op, input, &output); err != nil {
+			return fmt.Errorf("remove %s edge for table %s: %w", e.Rel, e.Table, err)
+		}
+		for _, item := range output.Items {
+			batchWrite.Append(m2mTable, g.DeleteItem(m2mTable).
+				WithKey(partitionKey, item[partitionKey]).
+				WithKey(sortKey, item[sortKey]))
+		}
+	}
+	op, input := batchWrite.Op()
+	var output sdk.BatchWriteItemOutput
+	if err := g.tx.Exec(ctx, op, input, &output); err != nil {
+		return fmt.Errorf("clear m2m edge: %w", err)
 	}
 	return nil
 }
@@ -788,6 +820,12 @@ func (u *updater) update(ctx context.Context, builder *dynamodb.UpdateItemBuilde
 	if err := u.graph.addFKEdges(ctx, []interface{}{id}, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
 		return err
 	}
+	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M]); err != nil {
+		return err
+	}
+	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M]); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -900,9 +938,6 @@ func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldS
 			update.Set(e.Attributes[0], e.Target.Nodes[0])
 		}
 	}
-	//for _, e := range addEdges[M2M] {
-	//	update.AddToSet(e.Key(), e.Target.Nodes[0])
-	//}
 }
 
 func (u *updater) setClearEdges(ctx context.Context, fields []*FieldSpec, clearEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
@@ -917,7 +952,4 @@ func (u *updater) setClearEdges(ctx context.Context, fields []*FieldSpec, clearE
 			update.Remove(e.Attributes[0])
 		}
 	}
-	//for _, e := range addEdges[M2M] {
-	//	update.AddToSet(e.Key(), e.Target.Nodes[0])
-	//}
 }

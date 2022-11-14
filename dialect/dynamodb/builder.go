@@ -38,6 +38,14 @@ func (d RootBuilder) PutItem(tableName string) *PutItemBuilder {
 	}
 }
 
+// DeleteItem returns a builder for DeleteItem operation.
+func (d RootBuilder) DeleteItem(tableName string) *DeleteItemBuilder {
+	return &DeleteItemBuilder{
+		tableName: tableName,
+		key:       make(map[string]types.AttributeValue),
+	}
+}
+
 // Update returns a builder for UpdateItem operation.
 func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 	return &UpdateItemBuilder{
@@ -54,6 +62,7 @@ const (
 	UpdateItemOperation  = "UpdateItem"
 	BatchWriteOperation  = "BatchWrite"
 	ScanOperation        = "ScanOperation"
+	DeletItemOperation   = "DeleteItemOperation"
 )
 
 type (
@@ -142,7 +151,7 @@ func (p *PutItemBuilder) Op() (string, interface{}) {
 }
 
 type (
-	// UpdateItemBuilder is the builder for UpdateItemArg.
+	// UpdateItemBuilder is the builder for UpdateItem operation.
 	UpdateItemBuilder struct {
 		tableName          string
 		key                map[string]types.AttributeValue
@@ -248,6 +257,28 @@ func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) *BatchWriteIte
 func (b *BatchWriteItemBuilder) Op() (string, interface{}) {
 	return BatchWriteOperation, &BatchWriteItemArgs{
 		operationMap: b.requestMap,
+	}
+}
+
+type (
+	// DeleteItemBuilder is the builder for DeleteItem operation.
+	DeleteItemBuilder struct {
+		tableName string
+		key       map[string]types.AttributeValue
+	}
+)
+
+// WithKey selects which item to be deleted for the DeleteItem operation.
+func (u *DeleteItemBuilder) WithKey(k string, v types.AttributeValue) *DeleteItemBuilder {
+	u.key[k] = v
+	return u
+}
+
+// Op returns name and input for DeleteItem operation.
+func (u *DeleteItemBuilder) Op() (string, interface{}) {
+	return DeletItemOperation, &dynamodb.DeleteItemInput{
+		TableName: aws.String(u.tableName),
+		Key:       u.key,
 	}
 }
 
