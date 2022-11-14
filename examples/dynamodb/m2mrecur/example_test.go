@@ -67,7 +67,7 @@ func Do(ctx context.Context, client *ent.Client) error {
 	flr = nati.QueryFollowers().AllX(ctx)
 	fmt.Println(flr)
 	// Output: [User(id=1, age=30, name=a8m)]
-	//
+
 	//// Traverse the graph:
 	//
 	//ages := nati.
