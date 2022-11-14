@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"entgo.io/ent/examples/dynamodb/m2mbidi/ent/predicate"
 	"entgo.io/ent/examples/dynamodb/m2mbidi/ent/user"
@@ -64,6 +65,28 @@ func newUserMutation(c config, op Op, opts ...userOption) *UserMutation {
 		opt(m)
 	}
 	return m
+}
+
+// withUserID sets the ID field of the mutation.
+func withUserID(id int) userOption {
+	return func(m *UserMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *User
+		)
+		m.oldValue = func(ctx context.Context) (*User, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().User.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
 }
 
 // withUser sets the old User of the mutation.
