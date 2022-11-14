@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"entgo.io/ent/examples/dynamodb/m2m2types/ent/group"
 	"entgo.io/ent/examples/dynamodb/m2m2types/ent/predicate"
@@ -64,6 +65,28 @@ func newGroupMutation(c config, op Op, opts ...groupOption) *GroupMutation {
 		opt(m)
 	}
 	return m
+}
+
+// withGroupID sets the ID field of the mutation.
+func withGroupID(id int) groupOption {
+	return func(m *GroupMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Group
+		)
+		m.oldValue = func(ctx context.Context) (*Group, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Group.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
 }
 
 // withGroup sets the old Group of the mutation.
@@ -424,6 +447,28 @@ func newUserMutation(c config, op Op, opts ...userOption) *UserMutation {
 		opt(m)
 	}
 	return m
+}
+
+// withUserID sets the ID field of the mutation.
+func withUserID(id int) userOption {
+	return func(m *UserMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *User
+		)
+		m.oldValue = func(ctx context.Context) (*User, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().User.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
 }
 
 // withUser sets the old User of the mutation.
