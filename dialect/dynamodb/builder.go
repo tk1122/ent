@@ -41,8 +41,9 @@ func (d RootBuilder) PutItem(tableName string) *PutItemBuilder {
 // DeleteItem returns a builder for DeleteItem operation.
 func (d RootBuilder) DeleteItem(tableName string) *DeleteItemBuilder {
 	return &DeleteItemBuilder{
-		tableName: tableName,
-		key:       make(map[string]types.AttributeValue),
+		tableName:  tableName,
+		key:        make(map[string]types.AttributeValue),
+		expBuilder: expression.NewBuilder(),
 	}
 }
 
@@ -263,14 +264,22 @@ func (b *BatchWriteItemBuilder) Op() (string, interface{}) {
 type (
 	// DeleteItemBuilder is the builder for DeleteItem operation.
 	DeleteItemBuilder struct {
-		tableName string
-		key       map[string]types.AttributeValue
+		tableName  string
+		expBuilder expression.Builder
+		exp        expression.Expression
+		key        map[string]types.AttributeValue
 	}
 )
 
 // WithKey selects which item to be deleted for the DeleteItem operation.
 func (u *DeleteItemBuilder) WithKey(k string, v types.AttributeValue) *DeleteItemBuilder {
 	u.key[k] = v
+	return u
+}
+
+// Where sets the expression for the DeleteItem operation.
+func (u *DeleteItemBuilder) Where(p *Predicate) *DeleteItemBuilder {
+	u.expBuilder = u.expBuilder.WithCondition(p.Query())
 	return u
 }
 

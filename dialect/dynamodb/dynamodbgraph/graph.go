@@ -888,49 +888,6 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 	return 0, nil
 }
 
-//func (u *updater) setClearEdges(ctx context.Context, ids []interface{}, clearEdges map[Rel][]*EdgeSpec, bulkWrite *dynamodb.BulkWriteBuilder) {
-//	updateClearEdges := mongo.Update(u.Node.Collection).Where(matchID(u.Node.ID.Key, ids))
-//	for _, fi := range u.Fields.Clear {
-//		updateClearEdges.Unset(fi.Key)
-//	}
-//	for _, e := range clearEdges[M2O] {
-//		updateClearEdges.Unset(e.Keys[0])
-//	}
-//	for _, e := range clearEdges[O2O] {
-//		if e.Inverse || e.Bidi {
-//			updateClearEdges.Unset(e.Keys[0])
-//		}
-//	}
-//	for _, e := range clearEdges[M2M] {
-//		fi := e.Key()
-//		if e.Target.Nodes != nil {
-//			updateClearEdges.PullAll(fi, e.Target.Nodes...)
-//		} else {
-//			updateClearEdges.Unset(fi)
-//		}
-//	}
-//
-//	if !updateClearEdges.IsEmpty() {
-//		bulkWrite.Append(updateClearEdges)
-//	}
-//}
-//
-//func (u *updater) setExternalEdges(ctx context.Context, ids []interface{}, addEdges, clearEdges map[Rel][]*EdgeSpec, bulkWrite *mongo.BulkWriteBuilder) error {
-//	if err := u.graph.clearExternalM2MEdges(ctx, ids, clearEdges[M2M], bulkWrite); err != nil {
-//		return err
-//	}
-//	if err := u.graph.addExternalM2MEdges(ctx, ids, addEdges[M2M], bulkWrite); err != nil {
-//		return err
-//	}
-//	if err := u.graph.clearFKEdges(ctx, ids, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
-//		return err
-//	}
-//	if err := u.graph.addFKEdges(ctx, ids, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
-//		return err
-//	}
-//	return nil
-//}
-
 func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldSpec, addEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
 	for _, f := range fields {
 		update.Set(f.Key, f.Value)
@@ -957,4 +914,53 @@ func (u *updater) setClearEdges(ctx context.Context, fields []*FieldSpec, clearE
 			update.Remove(e.Attributes[0])
 		}
 	}
+}
+
+// DeleteSpec holds the information for delete one
+// or more nodes in the graph.
+type DeleteSpec struct {
+	Node       *NodeSpec
+	Predicate  func(*dynamodb.Selector)
+	ClearEdges []*EdgeSpec
+}
+
+// DeleteNodes applies the DeleteSpec on the graph.
+func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int, error) {
+	tx, err := drv.Tx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var (
+		// id holds the PK of the node used for linking
+		// it with the other nodes.
+		id         = spec.Node.ID.Value
+		clearEdges = EdgeSpecs(spec.ClearEdges).GroupRel()
+	)
+
+	if id != nil {
+		gr := graph{tx: tx}
+		if err := gr.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M]); err != nil {
+			return 0, err
+		}
+	}
+
+	selector := dynamodb.Select().
+		From(spec.Node.Table)
+	if pred := spec.Predicate; pred != nil {
+		pred(selector)
+	}
+	selector = selector.BuildExpressions()
+
+	var res sdk.DeleteItemOutput
+	keyVal, err := attributevalue.Marshal(id)
+	if err != nil {
+		return 0, fmt.Errorf("key type not supported: %v has type %T", id, id)
+	}
+	op, args := graph{tx: tx}.DeleteItem(spec.Node.Table).WithKey(spec.Node.ID.Key, keyVal).Where(selector.P()).Op()
+	if err := tx.Exec(ctx, op, args, &res); err != nil {
+		return 0, rollback(tx, err)
+	}
+
+	return 1, tx.Commit()
 }
