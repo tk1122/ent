@@ -293,15 +293,16 @@ func (u *DeleteItemBuilder) Op() (string, interface{}) {
 
 // Selector is a builder for the `SELECT` statement.
 type Selector struct {
-	ctx        context.Context
-	table      string
-	query      *Predicate
-	expBuilder expression.Builder
-	exp        expression.Expression
-	not        bool
-	or         bool
-	orderDesc  bool
-	errs       []error // errors that added during the selection construction.
+	ctx            context.Context
+	table          string
+	query          *Predicate
+	expBuilder     expression.Builder
+	exp            expression.Expression
+	isBuilderEmpty bool
+	not            bool
+	or             bool
+	orderDesc      bool
+	errs           []error // errors that added during the selection construction.
 }
 
 // ordering direction aliases.
@@ -312,7 +313,8 @@ const (
 
 func Select(keys ...string) *Selector {
 	return (&Selector{
-		expBuilder: expression.NewBuilder(),
+		expBuilder:     expression.NewBuilder(),
+		isBuilderEmpty: true,
 	}).Select(keys...)
 }
 
@@ -335,6 +337,7 @@ func (s *Selector) Where(p *Predicate) *Selector {
 		s.query = And(cond, s.query)
 	}
 	s.expBuilder = s.expBuilder.WithFilter(s.query.Query())
+	s.isBuilderEmpty = false
 	return s
 }
 
@@ -342,9 +345,10 @@ func (s *Selector) Where(p *Predicate) *Selector {
 // used to prepare common SELECT statements and use them differently after the clone is made.
 func (s *Selector) Clone() *Selector {
 	return &Selector{
-		table: s.table,
-		query: s.query.clone(),
-		errs:  append(s.errs[:0:0], s.errs...),
+		table:          s.table,
+		query:          s.query.clone(),
+		errs:           append(s.errs[:0:0], s.errs...),
+		isBuilderEmpty: s.isBuilderEmpty,
 	}
 }
 
@@ -381,11 +385,15 @@ func (s *Selector) Select(keys ...string) *Selector {
 		proj = proj.AddNames(expression.Name(k))
 	}
 	s.expBuilder = s.expBuilder.WithProjection(proj)
+	s.isBuilderEmpty = false
 	return s
 }
 
 // BuildExpressions builds and validates the expression.
 func (s *Selector) BuildExpressions() *Selector {
+	if s.isBuilderEmpty {
+		return s
+	}
 	var err error
 	s.exp, err = s.expBuilder.Build()
 	if err != nil {
