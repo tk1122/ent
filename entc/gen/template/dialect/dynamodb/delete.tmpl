@@ -1,0 +1,53 @@
+{{/*
+Copyright 2019-present Facebook Inc. All rights reserved.
+This source code is licensed under the Apache 2.0 license found
+in the LICENSE file in the root directory of this source tree.
+*/}}
+
+{{/* gotype: entgo.io/ent/entc/gen.typeScope */}}
+
+{{ define "dialect/dynamodb/delete" }}
+{{ $builder := pascal $.Scope.Builder }}
+{{ $receiver := receiver $builder }}
+{{ $mutation := print $receiver ".mutation" }}
+
+func ({{ $receiver }} *{{ $builder }}) dynamodbExec(ctx context.Context) (int, error) {
+	_spec := &dynamodbgraph.DeleteSpec{
+		Node: &dynamodbgraph.NodeSpec{
+			Table: {{ $.Package }}.Table,
+			ID: &dynamodbgraph.FieldSpec{
+				Type: field.{{ $.ID.Type.ConstName }},
+				Key: {{ $.Package }}.{{ $.ID.Constant }},
+			},
+		},
+	}
+
+	{{- $idName := "id" }}
+	{{- if eq $receiver $idName }}{{ $idName = "id1" }}{{- end }}
+	{{ $idName }}, ok := {{ $mutation }}.{{ $.ID.MutationGet }}()
+	if ok {
+		_spec.Node.ID.Value = {{ $idName }}
+	}
+
+	{{- range $e := $.Edges }}
+	{{- if $e.M2M }}
+	{
+		{{- with extend $ "Edge" $e }}
+			{{ template "dialect/dynamodb/defedge" . }}
+		{{- end }}
+		_spec.ClearEdges = append(_spec.ClearEdges, edge)
+	}
+	{{- end }}
+	{{- end }}
+
+	if ps := {{ $mutation }}.predicates; len(ps) > 0 {
+		_spec.Predicate = func(selector *dynamodb.Selector) {
+			for i := range ps {
+				ps[i](selector)
+			}
+		}
+	}
+	return dynamodbgraph.DeleteNodes(ctx, {{ $receiver }}.driver, _spec)
+}
+
+{{ end }}

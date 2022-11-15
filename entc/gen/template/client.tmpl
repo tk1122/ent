@@ -203,7 +203,6 @@ func (c *{{ $client }}) UpdateOne({{ $rec }} *{{ $n.Name }}) *{{ $n.UpdateOneNam
 		return &{{ $n.UpdateOneName }}{config: c.config, hooks: c.Hooks(), mutation: mutation}
 	}
 {{ end }}
-{{- if ne $.Config.Storage.Name "dynamodb" }}
 // Delete returns a delete builder for {{ $n.Name }}.
 func (c *{{ $client }}) Delete() *{{ $n.DeleteName }} {
 	mutation := new{{ $n.MutationName }}(c.config, OpDelete)
@@ -223,7 +222,6 @@ func (c *{{ $client }}) Delete() *{{ $n.DeleteName }} {
 		builder.mutation.op = OpDeleteOne
 		return &{{ $n.DeleteOneName }}{builder}
 	}
-{{ end }}
 {{ end }}
 // Query returns a query builder for {{ $n.Name }}.
 func (c *{{ $client }}) Query() *{{ $n.QueryName }} {

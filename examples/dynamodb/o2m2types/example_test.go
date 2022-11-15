@@ -68,12 +68,12 @@ func Do(ctx context.Context, client *ent.Client) error {
 	fmt.Println(owner.Name)
 	// Output: a8m
 
-	// Traverse the sub-graph. Unlike `Count`, `CountX` panics if an error occurs.
-	count := pedro.
-		QueryOwner(). // a8m
-		QueryPets().  // pedro, lola
-		CountX(ctx)   // count
-	fmt.Println(count)
-	// Output: 2
+	//// Traverse the sub-graph. Unlike `Count`, `CountX` panics if an error occurs.
+	//count := pedro.
+	//	QueryOwner(). // a8m
+	//	QueryPets().  // pedro, lola
+	//	CountX(ctx)   // count
+	//fmt.Println(count)
+	//// Output: 2
 	return nil
 }

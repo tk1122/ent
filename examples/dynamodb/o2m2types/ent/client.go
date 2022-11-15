@@ -104,6 +104,25 @@ func (c *PetClient) UpdateOneID(id int) *PetUpdateOne {
 	return &PetUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
+// Delete returns a delete builder for Pet.
+func (c *PetClient) Delete() *PetDelete {
+	mutation := newPetMutation(c.config, OpDelete)
+	return &PetDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PetClient) DeleteOne(pe *Pet) *PetDeleteOne {
+	return c.DeleteOneID(pe.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *PetClient) DeleteOneID(id int) *PetDeleteOne {
+	builder := c.Delete().Where(pet.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PetDeleteOne{builder}
+}
+
 // Query returns a query builder for Pet.
 func (c *PetClient) Query() *PetQuery {
 	return &PetQuery{
@@ -184,6 +203,25 @@ func (c *UserClient) UpdateOne(u *User) *UserUpdateOne {
 func (c *UserClient) UpdateOneID(id int) *UserUpdateOne {
 	mutation := newUserMutation(c.config, OpUpdateOne, withUserID(id))
 	return &UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for User.
+func (c *UserClient) Delete() *UserDelete {
+	mutation := newUserMutation(c.config, OpDelete)
+	return &UserDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UserClient) DeleteOne(u *User) *UserDeleteOne {
+	return c.DeleteOneID(u.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *UserClient) DeleteOneID(id int) *UserDeleteOne {
+	builder := c.Delete().Where(user.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UserDeleteOne{builder}
 }
 
 // Query returns a query builder for User.

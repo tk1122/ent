@@ -100,6 +100,25 @@ func (c *NodeClient) UpdateOneID(id int) *NodeUpdateOne {
 	return &NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
+// Delete returns a delete builder for Node.
+func (c *NodeClient) Delete() *NodeDelete {
+	mutation := newNodeMutation(c.config, OpDelete)
+	return &NodeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NodeClient) DeleteOne(n *Node) *NodeDeleteOne {
+	return c.DeleteOneID(n.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *NodeClient) DeleteOneID(id int) *NodeDeleteOne {
+	builder := c.Delete().Where(node.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NodeDeleteOne{builder}
+}
+
 // Query returns a query builder for Node.
 func (c *NodeClient) Query() *NodeQuery {
 	return &NodeQuery{

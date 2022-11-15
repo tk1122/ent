@@ -41,8 +41,9 @@ func (d RootBuilder) PutItem(tableName string) *PutItemBuilder {
 // DeleteItem returns a builder for DeleteItem operation.
 func (d RootBuilder) DeleteItem(tableName string) *DeleteItemBuilder {
 	return &DeleteItemBuilder{
-		tableName: tableName,
-		key:       make(map[string]types.AttributeValue),
+		tableName:  tableName,
+		key:        make(map[string]types.AttributeValue),
+		expBuilder: expression.NewBuilder(),
 	}
 }
 
@@ -263,14 +264,22 @@ func (b *BatchWriteItemBuilder) Op() (string, interface{}) {
 type (
 	// DeleteItemBuilder is the builder for DeleteItem operation.
 	DeleteItemBuilder struct {
-		tableName string
-		key       map[string]types.AttributeValue
+		tableName  string
+		expBuilder expression.Builder
+		exp        expression.Expression
+		key        map[string]types.AttributeValue
 	}
 )
 
 // WithKey selects which item to be deleted for the DeleteItem operation.
 func (u *DeleteItemBuilder) WithKey(k string, v types.AttributeValue) *DeleteItemBuilder {
 	u.key[k] = v
+	return u
+}
+
+// Where sets the expression for the DeleteItem operation.
+func (u *DeleteItemBuilder) Where(p *Predicate) *DeleteItemBuilder {
+	u.expBuilder = u.expBuilder.WithCondition(p.Query())
 	return u
 }
 
@@ -284,15 +293,16 @@ func (u *DeleteItemBuilder) Op() (string, interface{}) {
 
 // Selector is a builder for the `SELECT` statement.
 type Selector struct {
-	ctx        context.Context
-	table      string
-	query      *Predicate
-	expBuilder expression.Builder
-	exp        expression.Expression
-	not        bool
-	or         bool
-	orderDesc  bool
-	errs       []error // errors that added during the selection construction.
+	ctx            context.Context
+	table          string
+	query          *Predicate
+	expBuilder     expression.Builder
+	exp            expression.Expression
+	isBuilderEmpty bool
+	not            bool
+	or             bool
+	orderDesc      bool
+	errs           []error // errors that added during the selection construction.
 }
 
 // ordering direction aliases.
@@ -303,7 +313,8 @@ const (
 
 func Select(keys ...string) *Selector {
 	return (&Selector{
-		expBuilder: expression.NewBuilder(),
+		expBuilder:     expression.NewBuilder(),
+		isBuilderEmpty: true,
 	}).Select(keys...)
 }
 
@@ -326,6 +337,7 @@ func (s *Selector) Where(p *Predicate) *Selector {
 		s.query = And(cond, s.query)
 	}
 	s.expBuilder = s.expBuilder.WithFilter(s.query.Query())
+	s.isBuilderEmpty = false
 	return s
 }
 
@@ -333,9 +345,10 @@ func (s *Selector) Where(p *Predicate) *Selector {
 // used to prepare common SELECT statements and use them differently after the clone is made.
 func (s *Selector) Clone() *Selector {
 	return &Selector{
-		table: s.table,
-		query: s.query.clone(),
-		errs:  append(s.errs[:0:0], s.errs...),
+		table:          s.table,
+		query:          s.query.clone(),
+		errs:           append(s.errs[:0:0], s.errs...),
+		isBuilderEmpty: s.isBuilderEmpty,
 	}
 }
 
@@ -372,11 +385,15 @@ func (s *Selector) Select(keys ...string) *Selector {
 		proj = proj.AddNames(expression.Name(k))
 	}
 	s.expBuilder = s.expBuilder.WithProjection(proj)
+	s.isBuilderEmpty = false
 	return s
 }
 
 // BuildExpressions builds and validates the expression.
 func (s *Selector) BuildExpressions() *Selector {
+	if s.isBuilderEmpty {
+		return s
+	}
 	var err error
 	s.exp, err = s.expBuilder.Build()
 	if err != nil {

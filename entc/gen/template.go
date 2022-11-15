@@ -57,10 +57,10 @@ var (
 			Name:   "update",
 			Format: pkgf("%s_update.go"),
 		},
-		//{
-		//	Name:   "delete",
-		//	Format: pkgf("%s_delete.go"),
-		//},
+		{
+			Name:   "delete",
+			Format: pkgf("%s_delete.go"),
+		},
 		{
 			Name:   "query",
 			Format: pkgf("%s_query.go"),
