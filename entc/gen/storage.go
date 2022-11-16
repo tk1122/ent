@@ -99,6 +99,9 @@ var drivers = []*Storage{
 			if f.IsString() {
 				return []Op{HasSuffix}
 			}
+			if f.Optional {
+				return nillableOps
+			}
 			return nil
 		},
 	},
