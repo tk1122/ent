@@ -15,6 +15,8 @@ var (
 	// UsersAttributes  holds the attributes for the "users " table.
 	UsersAttributes = []*schema.Attribute{
 		{Name: "id", Type: field.TypeInt},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "age", Type: field.TypeInt},
 		{Name: "name", Type: field.TypeString},
 	}
