@@ -17,7 +17,7 @@ import (
 	"entgo.io/ent/entc/integration/dynamodb/json/ent"
 )
 
-func TestMongo(t *testing.T) {
+func TestDynamoDBJSON(t *testing.T) {
 	client, err := ent.Open("dynamodb", "")
 	if err != nil {
 		log.Fatalf("failed opening connection to dynamodb: %v", err)
