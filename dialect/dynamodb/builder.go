@@ -57,6 +57,14 @@ func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 	}
 }
 
+// Select returns a builder for Select operation.
+func (d RootBuilder) Select(keys ...string) *Selector {
+	return (&Selector{
+		expBuilder:     expression.NewBuilder(),
+		isBuilderEmpty: true,
+	}).Select(keys...)
+}
+
 const (
 	CreateTableOperation = "CreateTable"
 	PutItemOperation     = "PutItem"
@@ -326,6 +334,9 @@ func (s *Selector) From(table string) *Selector {
 
 // Where sets or appends the given predicate to the selector.
 func (s *Selector) Where(p *Predicate) *Selector {
+	if p == nil {
+		return s
+	}
 	if s.not {
 		p = Not(p)
 	}

@@ -24,6 +24,9 @@ func P() *Predicate {
 
 // Query runs all appended build steps.
 func (p *Predicate) Query() expression.ConditionBuilder {
+	if len(p.fns) == 0 {
+		return p.condBuilder
+	}
 	p.condBuilder = p.fns[0]()
 	for _, f := range p.fns[1:] {
 		p.condBuilder = expression.And(p.condBuilder, f())
