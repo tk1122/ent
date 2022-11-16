@@ -68,7 +68,7 @@ func (c *Attribute) dynamoType() types.ScalarAttributeType {
 		return types.ScalarAttributeTypeN
 	case field.TypeString, field.TypeTime:
 		return types.ScalarAttributeTypeS
-	case field.TypeBytes:
+	case field.TypeBytes, field.TypeUUID:
 		return types.ScalarAttributeTypeB
 	default:
 		panic(fmt.Sprintf("unsupported type %q for column %q", c.Type.String(), c.Name))
