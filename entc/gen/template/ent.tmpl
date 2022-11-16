@@ -98,13 +98,13 @@ type {{ $.Name }}Edges struct {
 		return (&{{ $.Name }}Client{config: {{ $receiver }}.config}).{{ $func }}({{ $receiver }})
 	}
 {{ end }}
-{{- if ne $.Config.Storage.Name "dynamodb"}}
 // Update returns a builder for updating this {{ $.Name }}.
 // Note that you need to call {{ $.Name }}.Unwrap() before calling this method if this {{ $.Name }}
 // was returned from a transaction, and the transaction was committed or rolled back.
 func ({{ $receiver }} *{{ $.Name }}) Update() *{{ $.UpdateOneName }} {
 	return (&{{ $.Name }}Client{config: {{ $receiver }}.config}).UpdateOne({{ $receiver }})
 }
+{{- if ne $.Config.Storage.Name "dynamodb"}}
 
 // Unwrap unwraps the {{ $.Name }} entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.

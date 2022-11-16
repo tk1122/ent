@@ -927,10 +927,10 @@ type DeleteSpec struct {
 // DeleteNodes applies the DeleteSpec on the graph.
 func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int, error) {
 	tx, err := drv.Tx(ctx)
+	gr := graph{tx: tx}
 	if err != nil {
 		return 0, err
 	}
-
 	var (
 		// id holds the PK of the node used for linking
 		// it with the other nodes.
@@ -939,28 +939,46 @@ func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int
 	)
 
 	if id != nil {
-		gr := graph{tx: tx}
 		if err := gr.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M]); err != nil {
 			return 0, err
 		}
 	}
-
 	selector := dynamodb.Select().
 		From(spec.Node.Table)
 	if pred := spec.Predicate; pred != nil {
 		pred(selector)
 	}
 	selector = selector.BuildExpressions()
+	if id != nil {
+		keyVal, err := attributevalue.Marshal(id)
+		if err != nil {
+			return 0, fmt.Errorf("key type not supported: %v has type %T", id, id)
+		}
+		op, args := gr.DeleteItem(spec.Node.Table).Where(selector.P()).WithKey(spec.Node.ID.Key, keyVal).Op()
+		var res sdk.DeleteItemOutput
+		if err := tx.Exec(ctx, op, args, &res); err != nil {
+			return 0, rollback(tx, err)
+		}
 
-	var res sdk.DeleteItemOutput
-	keyVal, err := attributevalue.Marshal(id)
-	if err != nil {
-		return 0, fmt.Errorf("key type not supported: %v has type %T", id, id)
+		return 1, tx.Commit()
 	}
-	op, args := graph{tx: tx}.DeleteItem(spec.Node.Table).WithKey(spec.Node.ID.Key, keyVal).Where(selector.P()).Op()
-	if err := tx.Exec(ctx, op, args, &res); err != nil {
+	op, args := gr.Select().From(spec.Node.Table).Where(selector.P()).Op()
+	var scanOutput sdk.ScanOutput
+	if err := tx.Exec(ctx, op, args, &scanOutput); err != nil {
 		return 0, rollback(tx, err)
 	}
-
-	return 1, tx.Commit()
+	if len(scanOutput.Items) == 0 {
+		return 0, nil
+	}
+	batchWrite := dynamodb.BatchWriteItem()
+	for _, item := range scanOutput.Items {
+		batchWrite.Append(spec.Node.Table, graph{tx: tx}.DeleteItem(spec.Node.Table).
+			WithKey(spec.Node.ID.Key, item[spec.Node.ID.Key]))
+	}
+	op, input := batchWrite.Op()
+	var output sdk.BatchWriteItemOutput
+	if err := gr.tx.Exec(ctx, op, input, &output); err != nil {
+		return 0, fmt.Errorf("delete multiple items from table %v: %w", spec.Node.Table, err)
+	}
+	return len(scanOutput.Items), tx.Commit()
 }
