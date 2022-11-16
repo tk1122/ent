@@ -9,6 +9,7 @@ package ent
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -19,6 +20,10 @@ type User struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
+	// CreatedAt holds the value of the "created_at" field.
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	// UpdatedAt holds the value of the "updated_at" field.
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	// Age holds the value of the "age" field.
 	Age int `json:"age,omitempty"`
 	// Name holds the value of the "name" field.
@@ -40,9 +45,11 @@ type UserEdges struct {
 
 // UserItem represents item schema in MongoDB.
 type UserItem struct {
-	ID   int    `dynamodbav:"id"`
-	Age  int    `dynamodbav:"age"`
-	Name string `dynamodbav:"name"`
+	ID        int       `dynamodbav:"id"`
+	CreatedAt time.Time `dynamodbav:"created_at"`
+	UpdatedAt time.Time `dynamodbav:"updated_at"`
+	Age       int       `dynamodbav:"age"`
+	Name      string    `dynamodbav:"name"`
 
 	UserSpouse *int `dynamodbav:"user_spouse"`
 }
@@ -60,6 +67,8 @@ func (u *User) FromItem(item interface{}) error {
 		return err
 	}
 	u.ID = userItem.ID
+	u.CreatedAt = userItem.CreatedAt
+	u.UpdatedAt = userItem.UpdatedAt
 	u.Age = userItem.Age
 	u.Name = userItem.Name
 
@@ -73,11 +82,24 @@ func (u *User) QuerySpouse() *UserQuery {
 	return (&UserClient{config: u.config}).QuerySpouse(u)
 }
 
+// Update returns a builder for updating this User.
+// Note that you need to call User.Unwrap() before calling this method if this User
+// was returned from a transaction, and the transaction was committed or rolled back.
+func (u *User) Update() *UserUpdateOne {
+	return (&UserClient{config: u.config}).UpdateOne(u)
+}
+
 // String implements the fmt.Stringer.
 func (u *User) String() string {
 	var builder strings.Builder
 	builder.WriteString("User(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", u.ID))
+	builder.WriteString("created_at=")
+	builder.WriteString(u.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("updated_at=")
+	builder.WriteString(u.UpdatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
 	builder.WriteString("age=")
 	builder.WriteString(fmt.Sprintf("%v", u.Age))
 	builder.WriteString(", ")
