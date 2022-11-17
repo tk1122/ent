@@ -60,6 +60,12 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// Use adds the mutation hooks to all the entity clients.
+// In order to add hooks to a specific client, call: `client.Node.Use(...)`.
+func (c *Client) Use(hooks ...Hook) {
+	c.User.Use(hooks...)
+}
+
 // UserClient is a client for the User schema.
 type UserClient struct {
 	config

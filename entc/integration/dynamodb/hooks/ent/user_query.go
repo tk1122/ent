@@ -12,8 +12,9 @@ import (
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
-	"entgo.io/ent/examples/dynamodb/o2obidi/ent/predicate"
-	"entgo.io/ent/examples/dynamodb/o2obidi/ent/user"
+	"entgo.io/ent/entc/integration/dynamodb/hooks/ent/card"
+	"entgo.io/ent/entc/integration/dynamodb/hooks/ent/predicate"
+	"entgo.io/ent/entc/integration/dynamodb/hooks/ent/user"
 	"entgo.io/ent/schema/field"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
@@ -21,14 +22,16 @@ import (
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	limit      *int
-	offset     *int
-	unique     *bool
-	order      []OrderFunc
-	fields     []string
-	predicates []predicate.User
-	withSpouse *UserQuery
-	withFKs    bool
+	limit          *int
+	offset         *int
+	unique         *bool
+	order          []OrderFunc
+	fields         []string
+	predicates     []predicate.User
+	withCards      *CardQuery
+	withFriends    *UserQuery
+	withBestFriend *UserQuery
+	withFKs        bool
 	// intermediate query (i.e. traversal path).
 	dynamodb *dynamodb.Selector
 	path     func(context.Context) (*dynamodb.Selector, error)
@@ -65,8 +68,27 @@ func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
 	return uq
 }
 
-// QuerySpouse chains the current query on the "spouse" edge.
-func (uq *UserQuery) QuerySpouse() *UserQuery {
+// QueryCards chains the current query on the "cards" edge.
+func (uq *UserQuery) QueryCards() *CardQuery {
+	query := &CardQuery{config: uq.config}
+	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
+		if err := uq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := uq.dynamodbQuery(ctx)
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(user.Table, user.FieldID, selector),
+			dynamodbgraph.To(card.Table, card.FieldID, card.Keys),
+			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, user.CardsTable, user.CardsAttribute),
+		)
+		fromU = dynamodbgraph.SetNeighbors(step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryFriends chains the current query on the "friends" edge.
+func (uq *UserQuery) QueryFriends() *UserQuery {
 	query := &UserQuery{config: uq.config}
 	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
 		if err := uq.prepareQuery(ctx); err != nil {
@@ -76,7 +98,26 @@ func (uq *UserQuery) QuerySpouse() *UserQuery {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(user.Table, user.FieldID, selector),
 			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, user.SpouseTable, user.SpouseAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, user.FriendsTable, user.FriendsAttributes...),
+		)
+		fromU = dynamodbgraph.SetNeighbors(step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryBestFriend chains the current query on the "best_friend" edge.
+func (uq *UserQuery) QueryBestFriend() *UserQuery {
+	query := &UserQuery{config: uq.config}
+	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
+		if err := uq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := uq.dynamodbQuery(ctx)
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(user.Table, user.FieldID, selector),
+			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, user.BestFriendTable, user.BestFriendAttribute),
 		)
 		fromU = dynamodbgraph.SetNeighbors(step)
 		return fromU, nil
@@ -260,12 +301,14 @@ func (uq *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:     uq.config,
-		limit:      uq.limit,
-		offset:     uq.offset,
-		order:      append([]OrderFunc{}, uq.order...),
-		predicates: append([]predicate.User{}, uq.predicates...),
-		withSpouse: uq.withSpouse.Clone(),
+		config:         uq.config,
+		limit:          uq.limit,
+		offset:         uq.offset,
+		order:          append([]OrderFunc{}, uq.order...),
+		predicates:     append([]predicate.User{}, uq.predicates...),
+		withCards:      uq.withCards.Clone(),
+		withFriends:    uq.withFriends.Clone(),
+		withBestFriend: uq.withBestFriend.Clone(),
 		// clone intermediate query.
 		dynamodb: uq.dynamodb.Clone(),
 		path:     uq.path,
@@ -273,14 +316,36 @@ func (uq *UserQuery) Clone() *UserQuery {
 	}
 }
 
-// WithSpouse tells the query-builder to eager-load the nodes that are connected to
-// the "spouse" edge. The optional arguments are used to configure the query builder of the edge.
-func (uq *UserQuery) WithSpouse(opts ...func(*UserQuery)) *UserQuery {
+// WithCards tells the query-builder to eager-load the nodes that are connected to
+// the "cards" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithCards(opts ...func(*CardQuery)) *UserQuery {
+	query := &CardQuery{config: uq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	uq.withCards = query
+	return uq
+}
+
+// WithFriends tells the query-builder to eager-load the nodes that are connected to
+// the "friends" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithFriends(opts ...func(*UserQuery)) *UserQuery {
 	query := &UserQuery{config: uq.config}
 	for _, opt := range opts {
 		opt(query)
 	}
-	uq.withSpouse = query
+	uq.withFriends = query
+	return uq
+}
+
+// WithBestFriend tells the query-builder to eager-load the nodes that are connected to
+// the "best_friend" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithBestFriend(opts ...func(*UserQuery)) *UserQuery {
+	query := &UserQuery{config: uq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	uq.withBestFriend = query
 	return uq
 }
 
@@ -290,11 +355,11 @@ func (uq *UserQuery) WithSpouse(opts ...func(*UserQuery)) *UserQuery {
 // Example:
 //
 //	var v []struct {
-//		Age int `json:"age,omitempty"`
+//		Version int `json:"version,omitempty"`
 //	}
 //
 //	client.User.Query().
-//		Select(user.FieldAge).
+//		Select(user.FieldVersion).
 //		Scan(ctx, &v)
 func (uq *UserQuery) Select(fields ...string) *UserSelect {
 	uq.fields = append(uq.fields, fields...)
@@ -323,11 +388,13 @@ func (uq *UserQuery) dynamodbAll(ctx context.Context) ([]*User, error) {
 		_node       *User
 		withFKs     = uq.withFKs
 		_spec       = uq.querySpec()
-		loadedTypes = [1]bool{
-			uq.withSpouse != nil,
+		loadedTypes = [3]bool{
+			uq.withCards != nil,
+			uq.withFriends != nil,
+			uq.withBestFriend != nil,
 		}
 	)
-	if uq.withSpouse != nil {
+	if uq.withBestFriend != nil {
 		withFKs = true
 	}
 	if withFKs {
@@ -355,14 +422,73 @@ func (uq *UserQuery) dynamodbAll(ctx context.Context) ([]*User, error) {
 		return nodes, nil
 	}
 
-	if query := uq.withSpouse; query != nil {
+	if query := uq.withCards; query != nil {
+		fks := make([]interface{}, 0, len(nodes))
+		nodeids := make(map[int]*User)
+		for i := range nodes {
+			fks = append(fks, nodes[i].ID)
+			nodeids[nodes[i].ID] = nodes[i]
+			nodes[i].Edges.Cards = []*Card{}
+		}
+		query.withFKs = true
+		query.Where(predicate.Card(func(s *dynamodb.Selector) {
+			s.Where(dynamodb.In(user.CardsAttribute, fks...))
+		}))
+		neighbors, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range neighbors {
+			fk := n.user_cards
+			if fk == nil {
+				return nil, fmt.Errorf(`foreign-key "user_cards" is nil for node %v`, n.ID)
+			}
+			node, ok := nodeids[*fk]
+			if !ok {
+				return nil, fmt.Errorf(`unexpected foreign-key "user_cards" returned %v for node %v`, *fk, n.ID)
+			}
+			node.Edges.Cards = append(node.Edges.Cards, n)
+		}
+	}
+
+	if query := uq.withFriends; query != nil {
+		var (
+			edgeids []int
+			edges   = make(map[int][]*User)
+		)
+
+		for _, node := range nodes {
+			node.Edges.Friends = []*User{}
+			edgeids = append(edgeids, node.friend_id...)
+			for _, id := range node.friend_id {
+				edges[id] = append(edges[id], node)
+			}
+		}
+
+		query.Where(user.IDIn(edgeids...))
+		neighbors, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range neighbors {
+			nodes, ok := edges[n.ID]
+			if !ok {
+				return nil, fmt.Errorf(`unexpected "friends" node returned %v`, n.ID)
+			}
+			for i := range nodes {
+				nodes[i].Edges.Friends = append(nodes[i].Edges.Friends, n)
+			}
+		}
+	}
+
+	if query := uq.withBestFriend; query != nil {
 		ids := make([]int, 0, len(nodes))
 		nodeids := make(map[int][]*User)
 		for i := range nodes {
-			if nodes[i].user_spouse == nil {
+			if nodes[i].user_best_friend == nil {
 				continue
 			}
-			fk := *nodes[i].user_spouse
+			fk := *nodes[i].user_best_friend
 			if _, ok := nodeids[fk]; !ok {
 				ids = append(ids, fk)
 			}
@@ -376,10 +502,10 @@ func (uq *UserQuery) dynamodbAll(ctx context.Context) ([]*User, error) {
 		for _, n := range neighbors {
 			nodes, ok := nodeids[n.ID]
 			if !ok {
-				return nil, fmt.Errorf(`unexpected foreign-key "user_spouse" returned %v`, n.ID)
+				return nil, fmt.Errorf(`unexpected foreign-key "user_best_friend" returned %v`, n.ID)
 			}
 			for i := range nodes {
-				nodes[i].Edges.Spouse = n
+				nodes[i].Edges.BestFriend = n
 			}
 		}
 	}

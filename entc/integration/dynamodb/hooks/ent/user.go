@@ -19,32 +19,42 @@ type User struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
-	// Age holds the value of the "age" field.
-	Age int `json:"age,omitempty"`
+	// Version holds the value of the "version" field.
+	Version int `json:"version,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// Worth holds the value of the "worth" field.
+	Worth uint `json:"worth,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
-	Edges       UserEdges `json:"edges"`
-	user_spouse *int
+	Edges            UserEdges `json:"edges"`
+	user_best_friend *int
+	friend_id        []int
 }
 
 // UserEdges holds the relations/edges for other nodes in the graph.
 type UserEdges struct {
-	// Spouse holds the value of the spouse edge.
-	Spouse *User `json:"spouse,omitempty"`
+	// Cards holds the value of the cards edge.
+	Cards []*Card `json:"cards,omitempty"`
+	// Friends holds the value of the friends edge.
+	Friends []*User `json:"friends,omitempty"`
+	// BestFriend holds the value of the best_friend edge.
+	BestFriend *User `json:"best_friend,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [3]bool
 }
 
 // UserItem represents item schema in MongoDB.
 type UserItem struct {
-	ID   int    `dynamodbav:"id"`
-	Age  int    `dynamodbav:"age"`
-	Name string `dynamodbav:"name"`
+	ID      int    `dynamodbav:"id"`
+	Version int    `dynamodbav:"version"`
+	Name    string `dynamodbav:"name"`
+	Worth   uint   `dynamodbav:"worth"`
 
-	UserSpouse *int `dynamodbav:"user_spouse"`
+	UserBestFriend *int `dynamodbav:"user_best_friend"`
+
+	FriendID []int `dynamodbav:"friend_id"`
 }
 
 // item returns the object for receiving item from dynamodb.
@@ -60,17 +70,30 @@ func (u *User) FromItem(item interface{}) error {
 		return err
 	}
 	u.ID = userItem.ID
-	u.Age = userItem.Age
+	u.Version = userItem.Version
 	u.Name = userItem.Name
+	u.Worth = userItem.Worth
 
-	u.user_spouse = userItem.UserSpouse
+	u.user_best_friend = userItem.UserBestFriend
+
+	u.friend_id = userItem.FriendID
 
 	return nil
 }
 
-// QuerySpouse queries the "spouse" edge of the User entity.
-func (u *User) QuerySpouse() *UserQuery {
-	return (&UserClient{config: u.config}).QuerySpouse(u)
+// QueryCards queries the "cards" edge of the User entity.
+func (u *User) QueryCards() *CardQuery {
+	return (&UserClient{config: u.config}).QueryCards(u)
+}
+
+// QueryFriends queries the "friends" edge of the User entity.
+func (u *User) QueryFriends() *UserQuery {
+	return (&UserClient{config: u.config}).QueryFriends(u)
+}
+
+// QueryBestFriend queries the "best_friend" edge of the User entity.
+func (u *User) QueryBestFriend() *UserQuery {
+	return (&UserClient{config: u.config}).QueryBestFriend(u)
 }
 
 // Update returns a builder for updating this User.
@@ -85,11 +108,14 @@ func (u *User) String() string {
 	var builder strings.Builder
 	builder.WriteString("User(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", u.ID))
-	builder.WriteString("age=")
-	builder.WriteString(fmt.Sprintf("%v", u.Age))
+	builder.WriteString("version=")
+	builder.WriteString(fmt.Sprintf("%v", u.Version))
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(u.Name)
+	builder.WriteString(", ")
+	builder.WriteString("worth=")
+	builder.WriteString(fmt.Sprintf("%v", u.Worth))
 	builder.WriteByte(')')
 	return builder.String()
 }

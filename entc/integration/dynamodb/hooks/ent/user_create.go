@@ -12,7 +12,8 @@ import (
 	"fmt"
 
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
-	"entgo.io/ent/examples/dynamodb/o2obidi/ent/user"
+	"entgo.io/ent/entc/integration/dynamodb/hooks/ent/card"
+	"entgo.io/ent/entc/integration/dynamodb/hooks/ent/user"
 	"entgo.io/ent/schema/field"
 )
 
@@ -23,9 +24,17 @@ type UserCreate struct {
 	hooks    []Hook
 }
 
-// SetAge sets the "age" field.
-func (uc *UserCreate) SetAge(i int) *UserCreate {
-	uc.mutation.SetAge(i)
+// SetVersion sets the "version" field.
+func (uc *UserCreate) SetVersion(i int) *UserCreate {
+	uc.mutation.SetVersion(i)
+	return uc
+}
+
+// SetNillableVersion sets the "version" field if the given value is not nil.
+func (uc *UserCreate) SetNillableVersion(i *int) *UserCreate {
+	if i != nil {
+		uc.SetVersion(*i)
+	}
 	return uc
 }
 
@@ -35,29 +44,73 @@ func (uc *UserCreate) SetName(s string) *UserCreate {
 	return uc
 }
 
+// SetWorth sets the "worth" field.
+func (uc *UserCreate) SetWorth(u uint) *UserCreate {
+	uc.mutation.SetWorth(u)
+	return uc
+}
+
+// SetNillableWorth sets the "worth" field if the given value is not nil.
+func (uc *UserCreate) SetNillableWorth(u *uint) *UserCreate {
+	if u != nil {
+		uc.SetWorth(*u)
+	}
+	return uc
+}
+
 // SetID sets the "id" field.
 func (uc *UserCreate) SetID(i int) *UserCreate {
 	uc.mutation.SetID(i)
 	return uc
 }
 
-// SetSpouseID sets the "spouse" edge to the User entity by ID.
-func (uc *UserCreate) SetSpouseID(id int) *UserCreate {
-	uc.mutation.SetSpouseID(id)
+// AddCardIDs adds the "cards" edge to the Card entity by IDs.
+func (uc *UserCreate) AddCardIDs(ids ...int) *UserCreate {
+	uc.mutation.AddCardIDs(ids...)
 	return uc
 }
 
-// SetNillableSpouseID sets the "spouse" edge to the User entity by ID if the given value is not nil.
-func (uc *UserCreate) SetNillableSpouseID(id *int) *UserCreate {
+// AddCards adds the "cards" edges to the Card entity.
+func (uc *UserCreate) AddCards(c ...*Card) *UserCreate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return uc.AddCardIDs(ids...)
+}
+
+// AddFriendIDs adds the "friends" edge to the User entity by IDs.
+func (uc *UserCreate) AddFriendIDs(ids ...int) *UserCreate {
+	uc.mutation.AddFriendIDs(ids...)
+	return uc
+}
+
+// AddFriends adds the "friends" edges to the User entity.
+func (uc *UserCreate) AddFriends(u ...*User) *UserCreate {
+	ids := make([]int, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return uc.AddFriendIDs(ids...)
+}
+
+// SetBestFriendID sets the "best_friend" edge to the User entity by ID.
+func (uc *UserCreate) SetBestFriendID(id int) *UserCreate {
+	uc.mutation.SetBestFriendID(id)
+	return uc
+}
+
+// SetNillableBestFriendID sets the "best_friend" edge to the User entity by ID if the given value is not nil.
+func (uc *UserCreate) SetNillableBestFriendID(id *int) *UserCreate {
 	if id != nil {
-		uc = uc.SetSpouseID(*id)
+		uc = uc.SetBestFriendID(*id)
 	}
 	return uc
 }
 
-// SetSpouse sets the "spouse" edge to the User entity.
-func (uc *UserCreate) SetSpouse(u *User) *UserCreate {
-	return uc.SetSpouseID(u.ID)
+// SetBestFriend sets the "best_friend" edge to the User entity.
+func (uc *UserCreate) SetBestFriend(u *User) *UserCreate {
+	return uc.SetBestFriendID(u.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -71,6 +124,9 @@ func (uc *UserCreate) Save(ctx context.Context) (*User, error) {
 		err  error
 		node *User
 	)
+	if err := uc.defaults(); err != nil {
+		return nil, err
+	}
 	if len(uc.hooks) == 0 {
 		if err = uc.check(); err != nil {
 			return nil, err
@@ -134,10 +190,19 @@ func (uc *UserCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (uc *UserCreate) defaults() error {
+	if _, ok := uc.mutation.Version(); !ok {
+		v := user.DefaultVersion
+		uc.mutation.SetVersion(v)
+	}
+	return nil
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (uc *UserCreate) check() error {
-	if _, ok := uc.mutation.Age(); !ok {
-		return &ValidationError{Name: "age", err: errors.New(`ent: missing required field "User.age"`)}
+	if _, ok := uc.mutation.Version(); !ok {
+		return &ValidationError{Name: "version", err: errors.New(`ent: missing required field "User.version"`)}
 	}
 	if _, ok := uc.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "User.name"`)}
@@ -168,13 +233,13 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
-	if value, ok := uc.mutation.Age(); ok {
+	if value, ok := uc.mutation.Version(); ok {
 		_spec.Fields = append(_spec.Fields, &dynamodbgraph.FieldSpec{
 			Type:  field.TypeInt,
 			Value: value,
-			Key:   user.FieldAge,
+			Key:   user.FieldVersion,
 		})
-		_node.Age = value
+		_node.Version = value
 	}
 	if value, ok := uc.mutation.Name(); ok {
 		_spec.Fields = append(_spec.Fields, &dynamodbgraph.FieldSpec{
@@ -184,12 +249,39 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 		})
 		_node.Name = value
 	}
-	if nodes := uc.mutation.SpouseIDs(); len(nodes) > 0 {
+	if value, ok := uc.mutation.Worth(); ok {
+		_spec.Fields = append(_spec.Fields, &dynamodbgraph.FieldSpec{
+			Type:  field.TypeUint,
+			Value: value,
+			Key:   user.FieldWorth,
+		})
+		_node.Worth = value
+	}
+	if nodes := uc.mutation.CardsIDs(); len(nodes) > 0 {
 		edge := &dynamodbgraph.EdgeSpec{
-			Rel:        dynamodbgraph.O2O,
+			Rel:        dynamodbgraph.O2M,
 			Inverse:    false,
-			Table:      user.SpouseTable,
-			Attributes: []string{user.SpouseAttribute},
+			Table:      user.CardsTable,
+			Attributes: []string{user.CardsAttribute},
+			Bidi:       false,
+			Target: &dynamodbgraph.EdgeTarget{
+				IDSpec: &dynamodbgraph.FieldSpec{
+					Type: field.TypeInt,
+					Key:  card.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.FriendsIDs(); len(nodes) > 0 {
+		edge := &dynamodbgraph.EdgeSpec{
+			Rel:        dynamodbgraph.M2M,
+			Inverse:    false,
+			Table:      user.FriendsTable,
+			Attributes: user.FriendsAttributes,
 			Bidi:       true,
 			Target: &dynamodbgraph.EdgeTarget{
 				IDSpec: &dynamodbgraph.FieldSpec{
@@ -201,7 +293,26 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
-		_node.user_spouse = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.BestFriendIDs(); len(nodes) > 0 {
+		edge := &dynamodbgraph.EdgeSpec{
+			Rel:        dynamodbgraph.O2O,
+			Inverse:    false,
+			Table:      user.BestFriendTable,
+			Attributes: []string{user.BestFriendAttribute},
+			Bidi:       true,
+			Target: &dynamodbgraph.EdgeTarget{
+				IDSpec: &dynamodbgraph.FieldSpec{
+					Type: field.TypeInt,
+					Key:  user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.user_best_friend = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

@@ -317,6 +317,9 @@ func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*E
 				WithKey(sortKey, item[sortKey]))
 		}
 	}
+	if batchWrite.IsEmpty {
+		return nil
+	}
 	op, input := batchWrite.Op()
 	var output sdk.BatchWriteItemOutput
 	if err := g.tx.Exec(ctx, op, input, &output); err != nil {
@@ -818,7 +821,7 @@ func (u *updater) update(ctx context.Context, builder *dynamodb.UpdateItemBuilde
 	}
 	builder.WithKey(u.Node.ID.Key, keyVal)
 	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, builder)
-	u.setClearEdges(ctx, u.Fields.Clear, clearEdges, builder)
+	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, builder)
 	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
 		return err
 	}
@@ -878,7 +881,7 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 	//	bulkWrite.Append(update)
 	//}
 	//
-	//u.setClearEdges(ctx, ids, clearEdges, bulkWrite)
+	//u.setClearAttributesAndEdges(ctx, ids, clearEdges, bulkWrite)
 	//
 	//if err := u.setExternalEdges(ctx, ids, addEdges, clearEdges, bulkWrite); err != nil {
 	//	return 0, ferrs.Wrap(err)
@@ -902,7 +905,7 @@ func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldS
 	}
 }
 
-func (u *updater) setClearEdges(ctx context.Context, fields []*FieldSpec, clearEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
+func (u *updater) setClearAttributesAndEdges(ctx context.Context, fields []*FieldSpec, clearEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
 	for _, f := range fields {
 		update.Remove(f.Key)
 	}

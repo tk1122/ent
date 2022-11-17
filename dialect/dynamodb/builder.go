@@ -212,6 +212,9 @@ func (u *UpdateItemBuilder) BuildExpression(rv types.ReturnValue) (*UpdateItemBu
 		i += 1
 	}
 	for _, attr := range u.removeAttributes {
+		if _, ok := u.updateAttributeMap[attr]; ok {
+			continue
+		}
 		if i == 0 {
 			setExp = expression.Remove(expression.Name(attr))
 		} else {
@@ -241,6 +244,7 @@ type (
 	// BatchWriteItemBuilder is the builder for BatchWriteItem operation.
 	BatchWriteItemBuilder struct {
 		requestMap map[string][]Oper
+		IsEmpty    bool
 	}
 
 	// BatchWriteItemArgs contains input of BatchWriteItem operation.
@@ -253,12 +257,14 @@ type (
 func BatchWriteItem() *BatchWriteItemBuilder {
 	return &BatchWriteItemBuilder{
 		requestMap: make(map[string][]Oper),
+		IsEmpty:    true,
 	}
 }
 
 // Append appends a WriteRequest to BatchWriteItem.
 func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) *BatchWriteItemBuilder {
 	b.requestMap[tableName] = append(b.requestMap[tableName], op)
+	b.IsEmpty = false
 	return b
 }
 

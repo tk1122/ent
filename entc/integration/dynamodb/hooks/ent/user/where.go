@@ -9,7 +9,7 @@ package user
 import (
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
-	"entgo.io/ent/examples/dynamodb/o2obidi/ent/predicate"
+	"entgo.io/ent/entc/integration/dynamodb/hooks/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
@@ -83,10 +83,10 @@ func IDLTE(id int) predicate.User {
 	})
 }
 
-// Age applies equality check predicate on the "age" field. It's identical to AgeEQ.
-func Age(v int) predicate.User {
+// Version applies equality check predicate on the "version" field. It's identical to VersionEQ.
+func Version(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.EQ(FieldAge, v))
+		s.Where(dynamodb.EQ(FieldVersion, v))
 	})
 }
 
@@ -97,67 +97,74 @@ func Name(v string) predicate.User {
 	})
 }
 
-// AgeEQ applies the EQ predicate on the "age" field.
-func AgeEQ(v int) predicate.User {
+// Worth applies equality check predicate on the "worth" field. It's identical to WorthEQ.
+func Worth(v uint) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.EQ(FieldAge, v))
+		s.Where(dynamodb.EQ(FieldWorth, v))
 	})
 }
 
-// AgeNEQ applies the NEQ predicate on the "age" field.
-func AgeNEQ(v int) predicate.User {
+// VersionEQ applies the EQ predicate on the "version" field.
+func VersionEQ(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.NEQ(FieldAge, v))
+		s.Where(dynamodb.EQ(FieldVersion, v))
 	})
 }
 
-// AgeIn applies the In predicate on the "age" field.
-func AgeIn(vs ...int) predicate.User {
+// VersionNEQ applies the NEQ predicate on the "version" field.
+func VersionNEQ(v int) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.NEQ(FieldVersion, v))
+	})
+}
+
+// VersionIn applies the In predicate on the "version" field.
+func VersionIn(vs ...int) predicate.User {
 	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.In(FieldAge, v...))
+		s.Where(dynamodb.In(FieldVersion, v...))
 	})
 }
 
-// AgeNotIn applies the NotIn predicate on the "age" field.
-func AgeNotIn(vs ...int) predicate.User {
+// VersionNotIn applies the NotIn predicate on the "version" field.
+func VersionNotIn(vs ...int) predicate.User {
 	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.NotIn(FieldAge, v...))
+		s.Where(dynamodb.NotIn(FieldVersion, v...))
 	})
 }
 
-// AgeGT applies the GT predicate on the "age" field.
-func AgeGT(v int) predicate.User {
+// VersionGT applies the GT predicate on the "version" field.
+func VersionGT(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.GT(FieldAge, v))
+		s.Where(dynamodb.GT(FieldVersion, v))
 	})
 }
 
-// AgeGTE applies the GTE predicate on the "age" field.
-func AgeGTE(v int) predicate.User {
+// VersionGTE applies the GTE predicate on the "version" field.
+func VersionGTE(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.GTE(FieldAge, v))
+		s.Where(dynamodb.GTE(FieldVersion, v))
 	})
 }
 
-// AgeLT applies the LT predicate on the "age" field.
-func AgeLT(v int) predicate.User {
+// VersionLT applies the LT predicate on the "version" field.
+func VersionLT(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.LT(FieldAge, v))
+		s.Where(dynamodb.LT(FieldVersion, v))
 	})
 }
 
-// AgeLTE applies the LTE predicate on the "age" field.
-func AgeLTE(v int) predicate.User {
+// VersionLTE applies the LTE predicate on the "version" field.
+func VersionLTE(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.LTE(FieldAge, v))
+		s.Where(dynamodb.LTE(FieldVersion, v))
 	})
 }
 
@@ -239,25 +246,145 @@ func NameHasPrefix(v string) predicate.User {
 	})
 }
 
-// HasSpouse applies the HasEdge predicate on the "spouse" edge.
-func HasSpouse() predicate.User {
+// WorthEQ applies the EQ predicate on the "worth" field.
+func WorthEQ(v uint) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.EQ(FieldWorth, v))
+	})
+}
+
+// WorthNEQ applies the NEQ predicate on the "worth" field.
+func WorthNEQ(v uint) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.NEQ(FieldWorth, v))
+	})
+}
+
+// WorthIn applies the In predicate on the "worth" field.
+func WorthIn(vs ...uint) predicate.User {
+	v := make([]any, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.In(FieldWorth, v...))
+	})
+}
+
+// WorthNotIn applies the NotIn predicate on the "worth" field.
+func WorthNotIn(vs ...uint) predicate.User {
+	v := make([]any, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.NotIn(FieldWorth, v...))
+	})
+}
+
+// WorthGT applies the GT predicate on the "worth" field.
+func WorthGT(v uint) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.GT(FieldWorth, v))
+	})
+}
+
+// WorthGTE applies the GTE predicate on the "worth" field.
+func WorthGTE(v uint) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.GTE(FieldWorth, v))
+	})
+}
+
+// WorthLT applies the LT predicate on the "worth" field.
+func WorthLT(v uint) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.LT(FieldWorth, v))
+	})
+}
+
+// WorthLTE applies the LTE predicate on the "worth" field.
+func WorthLTE(v uint) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		s.Where(dynamodb.LTE(FieldWorth, v))
+	})
+}
+
+// HasCards applies the HasEdge predicate on the "cards" edge.
+func HasCards() predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(SpouseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, SpouseTable, SpouseAttribute),
+			dynamodbgraph.To(CardsTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, CardsTable, CardsAttribute),
 		)
 		dynamodbgraph.HasNeighbors(s, step)
 	})
 }
 
-// HasSpouseWith applies the HasEdge predicate on the "spouse" edge with a given conditions (other predicates).
-func HasSpouseWith(preds ...predicate.User) predicate.User {
+// HasCardsWith applies the HasEdge predicate on the "cards" edge with a given conditions (other predicates).
+func HasCardsWith(preds ...predicate.Card) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(Table, FieldID),
+			dynamodbgraph.To(CardsInverseTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, CardsTable, CardsAttribute),
+		)
+		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasFriends applies the HasEdge predicate on the "friends" edge.
+func HasFriends() predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(Table, FieldID),
+			dynamodbgraph.To(FriendsTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, FriendsTable, FriendsAttributes...),
+		)
+		dynamodbgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasFriendsWith applies the HasEdge predicate on the "friends" edge with a given conditions (other predicates).
+func HasFriendsWith(preds ...predicate.User) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		step := dynamodbgraph.NewStep(
 			dynamodbgraph.From(Table, FieldID),
 			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, SpouseTable, SpouseAttribute),
+			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, FriendsTable, FriendsAttributes...),
+		)
+		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasBestFriend applies the HasEdge predicate on the "best_friend" edge.
+func HasBestFriend() predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(Table, FieldID),
+			dynamodbgraph.To(BestFriendTable, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, BestFriendTable, BestFriendAttribute),
+		)
+		dynamodbgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasBestFriendWith applies the HasEdge predicate on the "best_friend" edge with a given conditions (other predicates).
+func HasBestFriendWith(preds ...predicate.User) predicate.User {
+	return predicate.User(func(s *dynamodb.Selector) {
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(Table, FieldID),
+			dynamodbgraph.To(Table, FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, BestFriendTable, BestFriendAttribute),
 		)
 		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
 			for _, p := range preds {
