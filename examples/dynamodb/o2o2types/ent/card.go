@@ -74,6 +74,13 @@ func (c *Card) QueryOwner() *UserQuery {
 	return (&CardClient{config: c.config}).QueryOwner(c)
 }
 
+// Update returns a builder for updating this Card.
+// Note that you need to call Card.Unwrap() before calling this method if this Card
+// was returned from a transaction, and the transaction was committed or rolled back.
+func (c *Card) Update() *CardUpdateOne {
+	return (&CardClient{config: c.config}).UpdateOne(c)
+}
+
 // String implements the fmt.Stringer.
 func (c *Card) String() string {
 	var builder strings.Builder
