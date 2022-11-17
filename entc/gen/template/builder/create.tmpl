@@ -186,7 +186,6 @@ func ({{ $receiver }} *{{ $builder }}) check() error {
 		{{ xtemplate $tmpl $ }}
 	{{- end }}
 {{- end }}
-{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{ $bulk := printf "%sCreateBulk" (pascal $.Name) }}
 {{ $receiver = receiver $bulk }}
 
@@ -206,6 +205,5 @@ type {{ $bulk }} struct {
 	{{ with extend $ "Builder" $bulk "Receiver" $receiver }}
 		{{ xtemplate $tmpl . }}
 	{{ end }}
-{{ end }}
 {{ end }}
 {{ end }}

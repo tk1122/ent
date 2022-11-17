@@ -64,6 +64,13 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// Use adds the mutation hooks to all the entity clients.
+// In order to add hooks to a specific client, call: `client.Node.Use(...)`.
+func (c *Client) Use(hooks ...Hook) {
+	c.Group.Use(hooks...)
+	c.User.Use(hooks...)
+}
+
 // GroupClient is a client for the Group schema.
 type GroupClient struct {
 	config
@@ -86,6 +93,11 @@ func (c *GroupClient) Create() *GroupCreate {
 	return &GroupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
+// CreateBulk returns a builder for creating a bulk of Group entities.
+func (c *GroupClient) CreateBulk(builders ...*GroupCreate) *GroupCreateBulk {
+	return &GroupCreateBulk{config: c.config, builders: builders}
+}
+
 // Update returns an update builder for Group.
 func (c *GroupClient) Update() *GroupUpdate {
 	mutation := newGroupMutation(c.config, OpUpdate)
@@ -102,6 +114,25 @@ func (c *GroupClient) UpdateOne(gr *Group) *GroupUpdateOne {
 func (c *GroupClient) UpdateOneID(id int) *GroupUpdateOne {
 	mutation := newGroupMutation(c.config, OpUpdateOne, withGroupID(id))
 	return &GroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Group.
+func (c *GroupClient) Delete() *GroupDelete {
+	mutation := newGroupMutation(c.config, OpDelete)
+	return &GroupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GroupClient) DeleteOne(gr *Group) *GroupDeleteOne {
+	return c.DeleteOneID(gr.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *GroupClient) DeleteOneID(id int) *GroupDeleteOne {
+	builder := c.Delete().Where(group.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GroupDeleteOne{builder}
 }
 
 // Query returns a query builder for Group.
@@ -168,6 +199,11 @@ func (c *UserClient) Create() *UserCreate {
 	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
+// CreateBulk returns a builder for creating a bulk of User entities.
+func (c *UserClient) CreateBulk(builders ...*UserCreate) *UserCreateBulk {
+	return &UserCreateBulk{config: c.config, builders: builders}
+}
+
 // Update returns an update builder for User.
 func (c *UserClient) Update() *UserUpdate {
 	mutation := newUserMutation(c.config, OpUpdate)
@@ -184,6 +220,25 @@ func (c *UserClient) UpdateOne(u *User) *UserUpdateOne {
 func (c *UserClient) UpdateOneID(id int) *UserUpdateOne {
 	mutation := newUserMutation(c.config, OpUpdateOne, withUserID(id))
 	return &UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for User.
+func (c *UserClient) Delete() *UserDelete {
+	mutation := newUserMutation(c.config, OpDelete)
+	return &UserDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UserClient) DeleteOne(u *User) *UserDeleteOne {
+	return c.DeleteOneID(u.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *UserClient) DeleteOneID(id int) *UserDeleteOne {
+	builder := c.Delete().Where(user.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UserDeleteOne{builder}
 }
 
 // Query returns a query builder for User.

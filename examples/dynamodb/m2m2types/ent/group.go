@@ -69,6 +69,13 @@ func (gr *Group) QueryUsers() *UserQuery {
 	return (&GroupClient{config: gr.config}).QueryUsers(gr)
 }
 
+// Update returns a builder for updating this Group.
+// Note that you need to call Group.Unwrap() before calling this method if this Group
+// was returned from a transaction, and the transaction was committed or rolled back.
+func (gr *Group) Update() *GroupUpdateOne {
+	return (&GroupClient{config: gr.config}).UpdateOne(gr)
+}
+
 // String implements the fmt.Stringer.
 func (gr *Group) String() string {
 	var builder strings.Builder

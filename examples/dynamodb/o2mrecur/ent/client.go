@@ -60,6 +60,12 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// Use adds the mutation hooks to all the entity clients.
+// In order to add hooks to a specific client, call: `client.Node.Use(...)`.
+func (c *Client) Use(hooks ...Hook) {
+	c.Node.Use(hooks...)
+}
+
 // NodeClient is a client for the Node schema.
 type NodeClient struct {
 	config
@@ -82,6 +88,11 @@ func (c *NodeClient) Create() *NodeCreate {
 	return &NodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
+// CreateBulk returns a builder for creating a bulk of Node entities.
+func (c *NodeClient) CreateBulk(builders ...*NodeCreate) *NodeCreateBulk {
+	return &NodeCreateBulk{config: c.config, builders: builders}
+}
+
 // Update returns an update builder for Node.
 func (c *NodeClient) Update() *NodeUpdate {
 	mutation := newNodeMutation(c.config, OpUpdate)
@@ -98,6 +109,25 @@ func (c *NodeClient) UpdateOne(n *Node) *NodeUpdateOne {
 func (c *NodeClient) UpdateOneID(id int) *NodeUpdateOne {
 	mutation := newNodeMutation(c.config, OpUpdateOne, withNodeID(id))
 	return &NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Node.
+func (c *NodeClient) Delete() *NodeDelete {
+	mutation := newNodeMutation(c.config, OpDelete)
+	return &NodeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NodeClient) DeleteOne(n *Node) *NodeDeleteOne {
+	return c.DeleteOneID(n.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *NodeClient) DeleteOneID(id int) *NodeDeleteOne {
+	builder := c.Delete().Where(node.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NodeDeleteOne{builder}
 }
 
 // Query returns a query builder for Node.

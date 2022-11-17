@@ -69,6 +69,13 @@ func (pe *Pet) QueryOwner() *UserQuery {
 	return (&PetClient{config: pe.config}).QueryOwner(pe)
 }
 
+// Update returns a builder for updating this Pet.
+// Note that you need to call Pet.Unwrap() before calling this method if this Pet
+// was returned from a transaction, and the transaction was committed or rolled back.
+func (pe *Pet) Update() *PetUpdateOne {
+	return (&PetClient{config: pe.config}).UpdateOne(pe)
+}
+
 // String implements the fmt.Stringer.
 func (pe *Pet) String() string {
 	var builder strings.Builder

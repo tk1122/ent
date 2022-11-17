@@ -76,6 +76,13 @@ func (n *Node) QueryChildren() *NodeQuery {
 	return (&NodeClient{config: n.config}).QueryChildren(n)
 }
 
+// Update returns a builder for updating this Node.
+// Note that you need to call Node.Unwrap() before calling this method if this Node
+// was returned from a transaction, and the transaction was committed or rolled back.
+func (n *Node) Update() *NodeUpdateOne {
+	return (&NodeClient{config: n.config}).UpdateOne(n)
+}
+
 // String implements the fmt.Stringer.
 func (n *Node) String() string {
 	var builder strings.Builder

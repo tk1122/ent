@@ -64,6 +64,13 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// Use adds the mutation hooks to all the entity clients.
+// In order to add hooks to a specific client, call: `client.Node.Use(...)`.
+func (c *Client) Use(hooks ...Hook) {
+	c.Pet.Use(hooks...)
+	c.User.Use(hooks...)
+}
+
 // PetClient is a client for the Pet schema.
 type PetClient struct {
 	config
@@ -84,6 +91,11 @@ func (c *PetClient) Use(hooks ...Hook) {
 func (c *PetClient) Create() *PetCreate {
 	mutation := newPetMutation(c.config, OpCreate)
 	return &PetCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Pet entities.
+func (c *PetClient) CreateBulk(builders ...*PetCreate) *PetCreateBulk {
+	return &PetCreateBulk{config: c.config, builders: builders}
 }
 
 // Update returns an update builder for Pet.
@@ -185,6 +197,11 @@ func (c *UserClient) Use(hooks ...Hook) {
 func (c *UserClient) Create() *UserCreate {
 	mutation := newUserMutation(c.config, OpCreate)
 	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of User entities.
+func (c *UserClient) CreateBulk(builders ...*UserCreate) *UserCreateBulk {
+	return &UserCreateBulk{config: c.config, builders: builders}
 }
 
 // Update returns an update builder for User.

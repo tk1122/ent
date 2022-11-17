@@ -64,6 +64,13 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// Use adds the mutation hooks to all the entity clients.
+// In order to add hooks to a specific client, call: `client.Node.Use(...)`.
+func (c *Client) Use(hooks ...Hook) {
+	c.Card.Use(hooks...)
+	c.User.Use(hooks...)
+}
+
 // CardClient is a client for the Card schema.
 type CardClient struct {
 	config
@@ -84,6 +91,11 @@ func (c *CardClient) Use(hooks ...Hook) {
 func (c *CardClient) Create() *CardCreate {
 	mutation := newCardMutation(c.config, OpCreate)
 	return &CardCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Card entities.
+func (c *CardClient) CreateBulk(builders ...*CardCreate) *CardCreateBulk {
+	return &CardCreateBulk{config: c.config, builders: builders}
 }
 
 // Update returns an update builder for Card.
@@ -185,6 +197,11 @@ func (c *UserClient) Use(hooks ...Hook) {
 func (c *UserClient) Create() *UserCreate {
 	mutation := newUserMutation(c.config, OpCreate)
 	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of User entities.
+func (c *UserClient) CreateBulk(builders ...*UserCreate) *UserCreateBulk {
+	return &UserCreateBulk{config: c.config, builders: builders}
 }
 
 // Update returns an update builder for User.
