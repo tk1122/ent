@@ -63,6 +63,12 @@ type (
 
 	// Rel is a relation type of edge.
 	Rel int
+
+	// BatchCreateSpec holds the information for creating
+	// multiple nodes in the graph.
+	BatchCreateSpec struct {
+		Nodes []*CreateSpec
+	}
 )
 
 // Relation types.
@@ -100,7 +106,7 @@ type (
 	creator struct {
 		graph
 		*CreateSpec
-		data map[string]types.AttributeValue
+		*BatchCreateSpec
 	}
 )
 
@@ -114,7 +120,6 @@ func CreateNode(ctx context.Context, drv dialect.Driver, spec *CreateSpec) (err 
 	cr := &creator{
 		CreateSpec: spec,
 		graph:      gr,
-		data:       make(map[string]types.AttributeValue),
 	}
 	if err = cr.node(ctx); err != nil {
 		return rollback(tx, err)
@@ -122,51 +127,116 @@ func CreateNode(ctx context.Context, drv dialect.Driver, spec *CreateSpec) (err 
 	return tx.Commit()
 }
 
-// node is the controller to create a single node in the graph.
-func (c *creator) node(ctx context.Context) (err error) {
-	if err = c.insert(ctx); err != nil {
+// BatchCreate applies the BatchCreateSpec on the graph.
+func BatchCreate(ctx context.Context, drv dialect.Driver, spec *BatchCreateSpec) error {
+	tx, err := drv.Tx(ctx)
+	if err != nil {
 		return err
 	}
-	edges := EdgeSpecs(c.CreateSpec.Edges).GroupRel()
-	if err = c.graph.addFKEdges(ctx, []interface{}{c.ID.Value}, append(edges[O2M], edges[O2O]...)); err != nil {
-		return err
+	gr := graph{tx: tx}
+	cr := &creator{BatchCreateSpec: spec, graph: gr}
+	if err := cr.nodes(ctx, tx); err != nil {
+		return rollback(tx, err)
 	}
-	if err = c.graph.addM2MEdges(ctx, []interface{}{c.ID.Value}, edges[M2M]); err != nil {
-		return err
-	}
-	return nil
+	return tx.Commit()
 }
 
-// insert returns potential errors during process of marshaling CreateSpec
-// to DynamoBD attributes and build steps in dynamodb.PutItemBuilder.
-func (c *creator) insert(ctx context.Context) (err error) {
-	edges, fields, putItemBuilder := EdgeSpecs(c.CreateSpec.Edges).GroupRel(), c.CreateSpec.Fields, c.PutItem(c.Table)
+// node is the controller to create a single node in the graph.
+func (c *creator) node(ctx context.Context) (err error) {
+	batchWrite := dynamodb.BatchWriteItem()
+	edges, fields := EdgeSpecs(c.CreateSpec.Edges).GroupRel(), c.CreateSpec.Fields
+	itemData := make(map[string]types.AttributeValue)
 	// ID field is not included in CreateSpec.Fields
 	if c.CreateSpec.ID != nil {
 		fields = append(fields, c.CreateSpec.ID)
 	}
-	if err = c.setItemAttributes(fields, edges); err != nil {
+	if err = c.insert(ctx, c.CreateSpec.Table, batchWrite, fields, edges, itemData); err != nil {
 		return err
 	}
-	putItemBuilder.SetItem(c.data)
-	op, args := putItemBuilder.Op()
-	return c.tx.Exec(ctx, op, args, nil)
+	if err = c.graph.addFKEdges(ctx, []interface{}{c.ID.Value}, append(edges[O2M], edges[O2O]...)); err != nil {
+		return err
+	}
+	if err = c.graph.addM2MEdges(ctx, []interface{}{c.ID.Value}, edges[M2M], batchWrite); err != nil {
+		return err
+	}
+	op, input := batchWrite.Op()
+	if err := c.tx.Exec(ctx, op, input, &sdk.BatchWriteItemOutput{}); err != nil {
+		return fmt.Errorf("create node failed: %w", err)
+	}
+	return nil
 }
 
-func (c *creator) setItemAttributes(fields []*FieldSpec, edges map[Rel][]*EdgeSpec) (err error) {
+func (c *creator) nodes(ctx context.Context, tx dialect.ExecQuerier) error {
+	if len(c.Nodes) == 0 {
+		return nil
+	}
+	batchWrite := dynamodb.BatchWriteItem()
+	for i, node := range c.Nodes {
+		if i > 0 && node.Table != c.Nodes[i-1].Table {
+			return fmt.Errorf("more than 1 table for batch insert: %q != %q", node.Table, c.Nodes[i-1].Table)
+		}
+		if node.ID.Value == nil {
+			return fmt.Errorf("the value of id field is required")
+		}
+		edges, fields := EdgeSpecs(node.Edges).GroupRel(), node.Fields
+		itemData := make(map[string]types.AttributeValue)
+		// ID field is not included in CreateSpec.Fields
+		fields = append(fields, node.ID)
+		if err := c.insert(ctx, node.Table, batchWrite, fields, edges, itemData); err != nil {
+			return err
+		}
+	}
+
+	for _, node := range c.Nodes {
+		edges := EdgeSpecs(node.Edges).GroupRel()
+		if err := c.graph.addM2MEdges(ctx, []interface{}{node.ID.Value}, edges[M2M], batchWrite); err != nil {
+			return err
+		}
+		if err := c.graph.addFKEdges(ctx, []interface{}{node.ID.Value}, append(edges[O2M], edges[O2O]...)); err != nil {
+			return err
+		}
+	}
+
+	op, args := batchWrite.Op()
+	if err := tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
+		return fmt.Errorf("create nodes failed: %w", err)
+	}
+
+	return nil
+}
+
+// insert put an item with all attributes it owns to the table,
+// it does not handle adding foreign keys fields in other tables.
+func (c *creator) insert(
+	ctx context.Context,
+	table string,
+	batchWrite *dynamodb.BatchWriteItemBuilder,
+	fields []*FieldSpec,
+	edges map[Rel][]*EdgeSpec,
+	itemData map[string]types.AttributeValue) (err error) {
+	putItemBuilder := c.PutItem(table)
+	if err = c.setItemAttributes(fields, edges, itemData); err != nil {
+		return err
+	}
+	putItemBuilder.SetItem(itemData)
+	batchWrite.Append(table, putItemBuilder)
+	return nil
+}
+
+func (c *creator) setItemAttributes(fields []*FieldSpec, edges map[Rel][]*EdgeSpec, itemData map[string]types.AttributeValue) (err error) {
 	for _, f := range fields {
-		if c.data[f.Key], err = attributevalue.Marshal(f.Value); err != nil {
+		if itemData[f.Key], err = attributevalue.Marshal(f.Value); err != nil {
 			return err
 		}
 	}
 	for _, e := range edges[M2O] {
-		if c.data[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
+		if itemData[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
 			return err
 		}
 	}
 	for _, e := range edges[O2O] {
 		if e.Inverse || e.Bidi {
-			if c.data[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
+			if itemData[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
 				return err
 			}
 		}
@@ -193,7 +263,6 @@ func (g *graph) addFKEdges(ctx context.Context, ids []interface{}, edges []*Edge
 			query, err := g.Update(edge.Table).
 				WithKey(edge.Target.IDSpec.Key, keyVal).
 				Set(edge.Attributes[0], id).
-				Where(dynamodb.NotExist(edge.Attributes[0])).
 				BuildExpression(types.ReturnValueAllNew)
 			if err != nil {
 				return fmt.Errorf("build update query for table %s: %w", edge.Table, err)
@@ -244,11 +313,10 @@ func (g *graph) clearFKEdges(ctx context.Context, ids []interface{}, edges []*Ed
 	return nil
 }
 
-func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec) (err error) {
+func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec, batchWrite *dynamodb.BatchWriteItemBuilder) (err error) {
 	if len(edges) == 0 {
 		return nil
 	}
-	batchWrite := dynamodb.BatchWriteItem()
 	for _, e := range edges {
 		m2mTable := e.Table
 		fromIds, toIds := e.Target.Nodes, ids
@@ -279,19 +347,13 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 			}
 		}
 	}
-	op, input := batchWrite.Op()
-	var output sdk.BatchWriteItemOutput
-	if err := g.tx.Exec(ctx, op, input, &output); err != nil {
-		return fmt.Errorf("add m2m edge: %w", err)
-	}
 	return nil
 }
 
-func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec) (err error) {
+func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec, batchWrite *dynamodb.BatchWriteItemBuilder) (err error) {
 	if len(edges) == 0 {
 		return nil
 	}
-	batchWrite := dynamodb.BatchWriteItem()
 	for _, e := range edges {
 		m2mTable := e.Table
 		id := ids[0]
@@ -316,14 +378,6 @@ func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*E
 				WithKey(partitionKey, item[partitionKey]).
 				WithKey(sortKey, item[sortKey]))
 		}
-	}
-	if batchWrite.IsEmpty {
-		return nil
-	}
-	op, input := batchWrite.Op()
-	var output sdk.BatchWriteItemOutput
-	if err := g.tx.Exec(ctx, op, input, &output); err != nil {
-		return fmt.Errorf("clear m2m edge: %w", err)
 	}
 	return nil
 }
@@ -823,16 +877,24 @@ func (u *updater) update(ctx context.Context, builder *dynamodb.UpdateItemBuilde
 	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, builder)
 	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, builder)
 	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
-		return err
+		return fmt.Errorf("update node failed: %w", err)
 	}
 	if err := u.graph.addFKEdges(ctx, []interface{}{id}, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
-		return err
+		return fmt.Errorf("update node failed: %w", err)
 	}
-	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M]); err != nil {
-		return err
+	batchWrite := dynamodb.BatchWriteItem()
+	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], batchWrite); err != nil {
+		return fmt.Errorf("update node failed: %w", err)
 	}
-	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M]); err != nil {
-		return err
+	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M], batchWrite); err != nil {
+		return fmt.Errorf("update node failed: %w", err)
+	}
+	if batchWrite.IsEmpty {
+		return nil
+	}
+	op, args := batchWrite.Op()
+	if err := u.tx.Exec(ctx, op, args, &sdk.DeleteItemOutput{}); err != nil {
+		return fmt.Errorf("update node failed: %w", err)
 	}
 	return nil
 }
@@ -927,61 +989,75 @@ type DeleteSpec struct {
 	ClearEdges []*EdgeSpec
 }
 
+type deleter struct {
+	graph
+	*DeleteSpec
+}
+
 // DeleteNodes applies the DeleteSpec on the graph.
 func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int, error) {
 	tx, err := drv.Tx(ctx)
 	gr := graph{tx: tx}
+	dl := deleter{
+		graph:      gr,
+		DeleteSpec: spec,
+	}
 	if err != nil {
 		return 0, err
 	}
-	var (
-		// id holds the PK of the node used for linking
-		// it with the other nodes.
-		id         = spec.Node.ID.Value
-		clearEdges = EdgeSpecs(spec.ClearEdges).GroupRel()
-	)
-
-	if id != nil {
-		if err := gr.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M]); err != nil {
-			return 0, err
-		}
-	}
-	selector := dynamodb.Select().
-		From(spec.Node.Table)
+	id := spec.Node.ID.Value
+	batchWrite := dynamodb.BatchWriteItem()
+	selector := dynamodb.Select().From(spec.Node.Table)
 	if pred := spec.Predicate; pred != nil {
 		pred(selector)
 	}
 	selector = selector.BuildExpressions()
 	if id != nil {
-		keyVal, err := attributevalue.Marshal(id)
-		if err != nil {
-			return 0, fmt.Errorf("key type not supported: %v has type %T", id, id)
-		}
-		op, args := gr.DeleteItem(spec.Node.Table).Where(selector.P()).WithKey(spec.Node.ID.Key, keyVal).Op()
-		var res sdk.DeleteItemOutput
-		if err := tx.Exec(ctx, op, args, &res); err != nil {
-			return 0, rollback(tx, err)
-		}
-
-		return 1, tx.Commit()
+		return dl.deleteNode(ctx, id, selector, batchWrite)
 	}
-	op, args := gr.Select().From(spec.Node.Table).Where(selector.P()).Op()
+	return dl.deleteNodes(ctx, selector, batchWrite)
+}
+
+func (dl *deleter) deleteNode(ctx context.Context, id interface{}, selector *dynamodb.Selector, batchWrite *dynamodb.BatchWriteItemBuilder) (int, error) {
+	keyVal, err := attributevalue.Marshal(id)
+	if err != nil {
+		return 0, fmt.Errorf("delete node failed: %w", err)
+	}
+	deleteItem := dl.DeleteItem(dl.DeleteSpec.Node.Table).Where(selector.P()).WithKey(dl.DeleteSpec.Node.ID.Key, keyVal)
+	batchWrite.Append(dl.DeleteSpec.Node.Table, deleteItem)
+	clearEdges := EdgeSpecs(dl.DeleteSpec.ClearEdges).GroupRel()
+	if err := dl.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], batchWrite); err != nil {
+		return 0, fmt.Errorf("delete node failed: %w", err)
+	}
+	if batchWrite.IsEmpty {
+		return 0, fmt.Errorf("delete node failed: %w", err)
+	}
+	op, args := batchWrite.Op()
+	if err := dl.tx.Exec(ctx, op, args, &sdk.DeleteItemOutput{}); err != nil {
+		return 0, fmt.Errorf("delete node failed: %w", err)
+	}
+	return 1, nil
+}
+
+func (dl *deleter) deleteNodes(ctx context.Context, selector *dynamodb.Selector, batchWrite *dynamodb.BatchWriteItemBuilder) (int, error) {
+	op, args := dl.Select().From(dl.DeleteSpec.Node.Table).Where(selector.P()).Op()
 	var scanOutput sdk.ScanOutput
-	if err := tx.Exec(ctx, op, args, &scanOutput); err != nil {
-		return 0, rollback(tx, err)
+	if err := dl.tx.Exec(ctx, op, args, &scanOutput); err != nil {
+		return 0, fmt.Errorf("delete nodes failed: %w", err)
 	}
 	if len(scanOutput.Items) == 0 {
 		return 0, nil
 	}
-	batchWrite := dynamodb.BatchWriteItem()
 	for _, item := range scanOutput.Items {
-		batchWrite.Append(spec.Node.Table, graph{tx: tx}.DeleteItem(spec.Node.Table).
-			WithKey(spec.Node.ID.Key, item[spec.Node.ID.Key]))
+		deleteItem := dl.DeleteItem(dl.DeleteSpec.Node.Table).WithKey(dl.DeleteSpec.Node.ID.Key, item[dl.DeleteSpec.Node.ID.Key])
+		batchWrite.Append(dl.DeleteSpec.Node.Table, deleteItem)
 	}
-	op, input := batchWrite.Op()
-	var output sdk.BatchWriteItemOutput
-	if err := gr.tx.Exec(ctx, op, input, &output); err != nil {
-		return 0, fmt.Errorf("delete multiple items from table %v: %w", spec.Node.Table, err)
+	if batchWrite.IsEmpty {
+		return 0, nil
 	}
-	return len(scanOutput.Items), tx.Commit()
+	op, args = batchWrite.Op()
+	if err := dl.tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
+		return 0, fmt.Errorf("delete nodes failed: %w", err)
+	}
+	return len(scanOutput.Items), nil
 }
