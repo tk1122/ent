@@ -136,10 +136,10 @@ var (
 			Name:   "predicate",
 			Format: "predicate/predicate.go",
 		},
-		//{
-		//	Name:   "hook",
-		//	Format: "hook/hook.go",
-		//},
+		{
+			Name:   "hook",
+			Format: "hook/hook.go",
+		},
 		//{
 		//	Name:   "privacy",
 		//	Format: "privacy/privacy.go",

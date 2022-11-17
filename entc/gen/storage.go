@@ -96,13 +96,14 @@ var drivers = []*Storage{
 		SchemaMode: Migrate,
 		OpCode:     opCodes(nil),
 		NonSupportedOps: func(f *Field) []Op {
+			var ops []Op
 			if f.IsString() {
-				return []Op{HasSuffix}
+				ops = append(ops, HasSuffix)
 			}
-			if f.Optional {
-				return nillableOps
+			if f.Optional || f.Nillable {
+				ops = append(ops, nillableOps...)
 			}
-			return nil
+			return ops
 		},
 	},
 }
