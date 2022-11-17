@@ -7,8 +7,6 @@
 package user
 
 import (
-	"time"
-
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/examples/dynamodb/o2obidi/ent/predicate"
@@ -85,20 +83,6 @@ func IDLTE(id int) predicate.User {
 	})
 }
 
-// CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
-func CreatedAt(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.EQ(FieldCreatedAt, v))
-	})
-}
-
-// UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
-func UpdatedAt(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.EQ(FieldUpdatedAt, v))
-	})
-}
-
 // Age applies equality check predicate on the "age" field. It's identical to AgeEQ.
 func Age(v int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
@@ -110,134 +94,6 @@ func Age(v int) predicate.User {
 func Name(v string) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.EQ(FieldName, v))
-	})
-}
-
-// CreatedAtEQ applies the EQ predicate on the "created_at" field.
-func CreatedAtEQ(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.EQ(FieldCreatedAt, v))
-	})
-}
-
-// CreatedAtNEQ applies the NEQ predicate on the "created_at" field.
-func CreatedAtNEQ(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.NEQ(FieldCreatedAt, v))
-	})
-}
-
-// CreatedAtIn applies the In predicate on the "created_at" field.
-func CreatedAtIn(vs ...time.Time) predicate.User {
-	v := make([]any, len(vs))
-	for i := range v {
-		v[i] = vs[i]
-	}
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.In(FieldCreatedAt, v...))
-	})
-}
-
-// CreatedAtNotIn applies the NotIn predicate on the "created_at" field.
-func CreatedAtNotIn(vs ...time.Time) predicate.User {
-	v := make([]any, len(vs))
-	for i := range v {
-		v[i] = vs[i]
-	}
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.NotIn(FieldCreatedAt, v...))
-	})
-}
-
-// CreatedAtGT applies the GT predicate on the "created_at" field.
-func CreatedAtGT(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.GT(FieldCreatedAt, v))
-	})
-}
-
-// CreatedAtGTE applies the GTE predicate on the "created_at" field.
-func CreatedAtGTE(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.GTE(FieldCreatedAt, v))
-	})
-}
-
-// CreatedAtLT applies the LT predicate on the "created_at" field.
-func CreatedAtLT(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.LT(FieldCreatedAt, v))
-	})
-}
-
-// CreatedAtLTE applies the LTE predicate on the "created_at" field.
-func CreatedAtLTE(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.LTE(FieldCreatedAt, v))
-	})
-}
-
-// UpdatedAtEQ applies the EQ predicate on the "updated_at" field.
-func UpdatedAtEQ(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.EQ(FieldUpdatedAt, v))
-	})
-}
-
-// UpdatedAtNEQ applies the NEQ predicate on the "updated_at" field.
-func UpdatedAtNEQ(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.NEQ(FieldUpdatedAt, v))
-	})
-}
-
-// UpdatedAtIn applies the In predicate on the "updated_at" field.
-func UpdatedAtIn(vs ...time.Time) predicate.User {
-	v := make([]any, len(vs))
-	for i := range v {
-		v[i] = vs[i]
-	}
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.In(FieldUpdatedAt, v...))
-	})
-}
-
-// UpdatedAtNotIn applies the NotIn predicate on the "updated_at" field.
-func UpdatedAtNotIn(vs ...time.Time) predicate.User {
-	v := make([]any, len(vs))
-	for i := range v {
-		v[i] = vs[i]
-	}
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.NotIn(FieldUpdatedAt, v...))
-	})
-}
-
-// UpdatedAtGT applies the GT predicate on the "updated_at" field.
-func UpdatedAtGT(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.GT(FieldUpdatedAt, v))
-	})
-}
-
-// UpdatedAtGTE applies the GTE predicate on the "updated_at" field.
-func UpdatedAtGTE(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.GTE(FieldUpdatedAt, v))
-	})
-}
-
-// UpdatedAtLT applies the LT predicate on the "updated_at" field.
-func UpdatedAtLT(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.LT(FieldUpdatedAt, v))
-	})
-}
-
-// UpdatedAtLTE applies the LTE predicate on the "updated_at" field.
-func UpdatedAtLTE(v time.Time) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		s.Where(dynamodb.LTE(FieldUpdatedAt, v))
 	})
 }
 
