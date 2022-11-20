@@ -24,12 +24,12 @@ type (
 	Mutation   = ent.Mutation
 	MutateFunc = ent.MutateFunc
 )
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{ $tmpl := printf "dialect/%s/order/signature" $.Storage }}
 {{ xtemplate $tmpl . }}
 
 {{ range $f, $order := order }}
 	{{ $f = pascal $f }}
-	{{- if ne $.Config.Storage.Name "dynamodb" }}
 	// {{ $f }} applies the given fields in {{ upper $f }} order.
 	func {{ $f }}(fields ...string) OrderFunc {
 		{{- with extend (index $.Nodes 0) "Func" $f "Order" $order -}}
@@ -37,7 +37,6 @@ type (
 			return {{ xtemplate $tmpl . }}
 		{{ end -}}
 	}
-	{{- else }}
 	// {{ $f }} applies the ordering by the key used in the query in {{ upper $f }} order.
 	func {{ $f }}() OrderFunc {
 		{{- with extend (index $.Nodes 0) "Func" $f "Order" $order -}}
@@ -45,10 +44,8 @@ type (
 			return {{ xtemplate $tmpl . }}
 		{{ end -}}
 	}
-	{{- end }}
 {{ end }}
 
-{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{ $tmpl = printf "dialect/%s/group/signature" $.Storage }}
 // AggregateFunc applies an aggregation step on the group-by traversal/selector.
 {{ xtemplate $tmpl . }}
@@ -82,7 +79,7 @@ func As(fn AggregateFunc, end string) AggregateFunc {
 		{{ end -}}
 	}
 {{ end }}
-{{ end }}
+{{- end }}
 // ValidationError returns when validating a field or edge fails.
 type ValidationError struct {
 	Name string // Field or edge name.
