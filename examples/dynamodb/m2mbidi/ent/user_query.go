@@ -24,7 +24,6 @@ type UserQuery struct {
 	limit       *int
 	offset      *int
 	unique      *bool
-	order       []OrderFunc
 	fields      []string
 	predicates  []predicate.User
 	withFriends *UserQuery
@@ -56,31 +55,6 @@ func (uq *UserQuery) Offset(offset int) *UserQuery {
 func (uq *UserQuery) Unique(unique bool) *UserQuery {
 	uq.unique = &unique
 	return uq
-}
-
-// Order adds an order step to the query.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
-	uq.order = append(uq.order, o...)
-	return uq
-}
-
-// QueryFriends chains the current query on the "friends" edge.
-func (uq *UserQuery) QueryFriends() *UserQuery {
-	query := &UserQuery{config: uq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := uq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := uq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(user.Table, user.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, user.FriendsTable, user.FriendsAttributes...),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first User entity from the query.
@@ -262,7 +236,6 @@ func (uq *UserQuery) Clone() *UserQuery {
 		config:      uq.config,
 		limit:       uq.limit,
 		offset:      uq.offset,
-		order:       append([]OrderFunc{}, uq.order...),
 		predicates:  append([]predicate.User{}, uq.predicates...),
 		withFriends: uq.withFriends.Clone(),
 		// clone intermediate query.
@@ -417,13 +390,6 @@ func (uq *UserQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := uq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := uq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

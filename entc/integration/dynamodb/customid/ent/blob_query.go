@@ -25,7 +25,6 @@ type BlobQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Blob
 	withParent *BlobQuery
@@ -59,50 +58,6 @@ func (bq *BlobQuery) Offset(offset int) *BlobQuery {
 func (bq *BlobQuery) Unique(unique bool) *BlobQuery {
 	bq.unique = &unique
 	return bq
-}
-
-// Order adds an order step to the query.
-func (bq *BlobQuery) Order(o ...OrderFunc) *BlobQuery {
-	bq.order = append(bq.order, o...)
-	return bq
-}
-
-// QueryParent chains the current query on the "parent" edge.
-func (bq *BlobQuery) QueryParent() *BlobQuery {
-	query := &BlobQuery{config: bq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := bq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := bq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(blob.Table, blob.FieldID, selector),
-			dynamodbgraph.To(blob.Table, blob.FieldID, blob.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, blob.ParentTable, blob.ParentAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryLinks chains the current query on the "links" edge.
-func (bq *BlobQuery) QueryLinks() *BlobQuery {
-	query := &BlobQuery{config: bq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := bq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := bq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(blob.Table, blob.FieldID, selector),
-			dynamodbgraph.To(blob.Table, blob.FieldID, blob.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, blob.LinksTable, blob.LinksAttributes...),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Blob entity from the query.
@@ -284,7 +239,6 @@ func (bq *BlobQuery) Clone() *BlobQuery {
 		config:     bq.config,
 		limit:      bq.limit,
 		offset:     bq.offset,
-		order:      append([]OrderFunc{}, bq.order...),
 		predicates: append([]predicate.Blob{}, bq.predicates...),
 		withParent: bq.withParent.Clone(),
 		withLinks:  bq.withLinks.Clone(),
@@ -488,13 +442,6 @@ func (bq *BlobQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := bq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := bq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

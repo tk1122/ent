@@ -8,7 +8,6 @@ package node
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/examples/dynamodb/o2mrecur/ent/predicate"
 )
 
@@ -151,62 +150,6 @@ func ValueLT(v int) predicate.Node {
 func ValueLTE(v int) predicate.Node {
 	return predicate.Node(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.LTE(FieldValue, v))
-	})
-}
-
-// HasParent applies the HasEdge predicate on the "parent" edge.
-func HasParent() predicate.Node {
-	return predicate.Node(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ParentTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, ParentTable, ParentAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasParentWith applies the HasEdge predicate on the "parent" edge with a given conditions (other predicates).
-func HasParentWith(preds ...predicate.Node) predicate.Node {
-	return predicate.Node(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, ParentTable, ParentAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasChildren applies the HasEdge predicate on the "children" edge.
-func HasChildren() predicate.Node {
-	return predicate.Node(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ChildrenTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, ChildrenTable, ChildrenAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasChildrenWith applies the HasEdge predicate on the "children" edge with a given conditions (other predicates).
-func HasChildrenWith(preds ...predicate.Node) predicate.Node {
-	return predicate.Node(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, ChildrenTable, ChildrenAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
 	})
 }
 

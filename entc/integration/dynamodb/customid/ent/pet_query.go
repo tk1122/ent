@@ -12,7 +12,6 @@ import (
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
-	"entgo.io/ent/entc/integration/dynamodb/customid/ent/car"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/pet"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/predicate"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/user"
@@ -26,7 +25,6 @@ type PetQuery struct {
 	limit          *int
 	offset         *int
 	unique         *bool
-	order          []OrderFunc
 	fields         []string
 	predicates     []predicate.Pet
 	withOwner      *UserQuery
@@ -62,88 +60,6 @@ func (pq *PetQuery) Offset(offset int) *PetQuery {
 func (pq *PetQuery) Unique(unique bool) *PetQuery {
 	pq.unique = &unique
 	return pq
-}
-
-// Order adds an order step to the query.
-func (pq *PetQuery) Order(o ...OrderFunc) *PetQuery {
-	pq.order = append(pq.order, o...)
-	return pq
-}
-
-// QueryOwner chains the current query on the "owner" edge.
-func (pq *PetQuery) QueryOwner() *UserQuery {
-	query := &UserQuery{config: pq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := pq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := pq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(pet.Table, pet.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, pet.OwnerTable, pet.OwnerAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryCars chains the current query on the "cars" edge.
-func (pq *PetQuery) QueryCars() *CarQuery {
-	query := &CarQuery{config: pq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := pq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := pq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(pet.Table, pet.FieldID, selector),
-			dynamodbgraph.To(car.Table, car.FieldID, car.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, pet.CarsTable, pet.CarsAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryFriends chains the current query on the "friends" edge.
-func (pq *PetQuery) QueryFriends() *PetQuery {
-	query := &PetQuery{config: pq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := pq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := pq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(pet.Table, pet.FieldID, selector),
-			dynamodbgraph.To(pet.Table, pet.FieldID, pet.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, pet.FriendsTable, pet.FriendsAttributes...),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryBestFriend chains the current query on the "best_friend" edge.
-func (pq *PetQuery) QueryBestFriend() *PetQuery {
-	query := &PetQuery{config: pq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := pq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := pq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(pet.Table, pet.FieldID, selector),
-			dynamodbgraph.To(pet.Table, pet.FieldID, pet.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, pet.BestFriendTable, pet.BestFriendAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Pet entity from the query.
@@ -325,7 +241,6 @@ func (pq *PetQuery) Clone() *PetQuery {
 		config:         pq.config,
 		limit:          pq.limit,
 		offset:         pq.offset,
-		order:          append([]OrderFunc{}, pq.order...),
 		predicates:     append([]predicate.Pet{}, pq.predicates...),
 		withOwner:      pq.withOwner.Clone(),
 		withCars:       pq.withCars.Clone(),
@@ -603,13 +518,6 @@ func (pq *PetQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := pq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := pq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

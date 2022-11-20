@@ -8,7 +8,6 @@ package pet
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/examples/dynamodb/o2m2types/ent/predicate"
 )
 
@@ -165,34 +164,6 @@ func NameContains(v string) predicate.Pet {
 func NameHasPrefix(v string) predicate.Pet {
 	return predicate.Pet(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.HasPrefix(FieldName, v))
-	})
-}
-
-// HasOwner applies the HasEdge predicate on the "owner" edge.
-func HasOwner() predicate.Pet {
-	return predicate.Pet(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(OwnerTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, OwnerTable, OwnerAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasOwnerWith applies the HasEdge predicate on the "owner" edge with a given conditions (other predicates).
-func HasOwnerWith(preds ...predicate.User) predicate.Pet {
-	return predicate.Pet(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(OwnerInverseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, OwnerTable, OwnerAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
 	})
 }
 

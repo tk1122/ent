@@ -24,7 +24,6 @@ type UserQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.User
 	// intermediate query (i.e. traversal path).
@@ -54,12 +53,6 @@ func (uq *UserQuery) Offset(offset int) *UserQuery {
 // By default, unique is set to true, and can be disabled using this method.
 func (uq *UserQuery) Unique(unique bool) *UserQuery {
 	uq.unique = &unique
-	return uq
-}
-
-// Order adds an order step to the query.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
-	uq.order = append(uq.order, o...)
 	return uq
 }
 
@@ -242,7 +235,6 @@ func (uq *UserQuery) Clone() *UserQuery {
 		config:     uq.config,
 		limit:      uq.limit,
 		offset:     uq.offset,
-		order:      append([]OrderFunc{}, uq.order...),
 		predicates: append([]predicate.User{}, uq.predicates...),
 		// clone intermediate query.
 		dynamodb: uq.dynamodb.Clone(),
@@ -350,13 +342,6 @@ func (uq *UserQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := uq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := uq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

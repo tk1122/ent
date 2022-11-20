@@ -8,7 +8,6 @@ package group
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/predicate"
 )
 
@@ -80,34 +79,6 @@ func IDLT(id int) predicate.Group {
 func IDLTE(id int) predicate.Group {
 	return predicate.Group(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.LTE(FieldID, id))
-	})
-}
-
-// HasUsers applies the HasEdge predicate on the "users" edge.
-func HasUsers() predicate.Group {
-	return predicate.Group(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(UsersTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, false, UsersTable, UsersAttributes...),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasUsersWith applies the HasEdge predicate on the "users" edge with a given conditions (other predicates).
-func HasUsersWith(preds ...predicate.User) predicate.Group {
-	return predicate.Group(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(UsersInverseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, false, UsersTable, UsersAttributes...),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
 	})
 }
 

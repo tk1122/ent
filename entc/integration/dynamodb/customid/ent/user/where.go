@@ -8,7 +8,6 @@ package user
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/predicate"
 )
 
@@ -80,118 +79,6 @@ func IDLT(id int) predicate.User {
 func IDLTE(id int) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.LTE(FieldID, id))
-	})
-}
-
-// HasGroups applies the HasEdge predicate on the "groups" edge.
-func HasGroups() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(GroupsTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, true, false, GroupsTable, GroupsAttributes...),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasGroupsWith applies the HasEdge predicate on the "groups" edge with a given conditions (other predicates).
-func HasGroupsWith(preds ...predicate.Group) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(GroupsInverseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, true, false, GroupsTable, GroupsAttributes...),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasParent applies the HasEdge predicate on the "parent" edge.
-func HasParent() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ParentTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, ParentTable, ParentAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasParentWith applies the HasEdge predicate on the "parent" edge with a given conditions (other predicates).
-func HasParentWith(preds ...predicate.User) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, ParentTable, ParentAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasChildren applies the HasEdge predicate on the "children" edge.
-func HasChildren() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ChildrenTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, ChildrenTable, ChildrenAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasChildrenWith applies the HasEdge predicate on the "children" edge with a given conditions (other predicates).
-func HasChildrenWith(preds ...predicate.User) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, ChildrenTable, ChildrenAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasPets applies the HasEdge predicate on the "pets" edge.
-func HasPets() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(PetsTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, PetsTable, PetsAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasPetsWith applies the HasEdge predicate on the "pets" edge with a given conditions (other predicates).
-func HasPetsWith(preds ...predicate.Pet) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(PetsInverseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, PetsTable, PetsAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
 	})
 }
 

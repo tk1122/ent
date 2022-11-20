@@ -25,7 +25,6 @@ type CarQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Car
 	withOwner  *PetQuery
@@ -58,31 +57,6 @@ func (cq *CarQuery) Offset(offset int) *CarQuery {
 func (cq *CarQuery) Unique(unique bool) *CarQuery {
 	cq.unique = &unique
 	return cq
-}
-
-// Order adds an order step to the query.
-func (cq *CarQuery) Order(o ...OrderFunc) *CarQuery {
-	cq.order = append(cq.order, o...)
-	return cq
-}
-
-// QueryOwner chains the current query on the "owner" edge.
-func (cq *CarQuery) QueryOwner() *PetQuery {
-	query := &PetQuery{config: cq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := cq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := cq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(car.Table, car.FieldID, selector),
-			dynamodbgraph.To(pet.Table, pet.FieldID, pet.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, car.OwnerTable, car.OwnerAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Car entity from the query.
@@ -264,7 +238,6 @@ func (cq *CarQuery) Clone() *CarQuery {
 		config:     cq.config,
 		limit:      cq.limit,
 		offset:     cq.offset,
-		order:      append([]OrderFunc{}, cq.order...),
 		predicates: append([]predicate.Car{}, cq.predicates...),
 		withOwner:  cq.withOwner.Clone(),
 		// clone intermediate query.
@@ -425,13 +398,6 @@ func (cq *CarQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := cq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := cq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/group"
-	"entgo.io/ent/entc/integration/dynamodb/customid/ent/pet"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/predicate"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/user"
 	"entgo.io/ent/schema/field"
@@ -26,7 +25,6 @@ type UserQuery struct {
 	limit        *int
 	offset       *int
 	unique       *bool
-	order        []OrderFunc
 	fields       []string
 	predicates   []predicate.User
 	withGroups   *GroupQuery
@@ -62,88 +60,6 @@ func (uq *UserQuery) Offset(offset int) *UserQuery {
 func (uq *UserQuery) Unique(unique bool) *UserQuery {
 	uq.unique = &unique
 	return uq
-}
-
-// Order adds an order step to the query.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
-	uq.order = append(uq.order, o...)
-	return uq
-}
-
-// QueryGroups chains the current query on the "groups" edge.
-func (uq *UserQuery) QueryGroups() *GroupQuery {
-	query := &GroupQuery{config: uq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := uq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := uq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(user.Table, user.FieldID, selector),
-			dynamodbgraph.To(group.Table, group.FieldID, group.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, true, false, user.GroupsTable, user.GroupsAttributes...),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryParent chains the current query on the "parent" edge.
-func (uq *UserQuery) QueryParent() *UserQuery {
-	query := &UserQuery{config: uq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := uq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := uq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(user.Table, user.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, user.ParentTable, user.ParentAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryChildren chains the current query on the "children" edge.
-func (uq *UserQuery) QueryChildren() *UserQuery {
-	query := &UserQuery{config: uq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := uq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := uq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(user.Table, user.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, user.ChildrenTable, user.ChildrenAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryPets chains the current query on the "pets" edge.
-func (uq *UserQuery) QueryPets() *PetQuery {
-	query := &PetQuery{config: uq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := uq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := uq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(user.Table, user.FieldID, selector),
-			dynamodbgraph.To(pet.Table, pet.FieldID, pet.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, user.PetsTable, user.PetsAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first User entity from the query.
@@ -325,7 +241,6 @@ func (uq *UserQuery) Clone() *UserQuery {
 		config:       uq.config,
 		limit:        uq.limit,
 		offset:       uq.offset,
-		order:        append([]OrderFunc{}, uq.order...),
 		predicates:   append([]predicate.User{}, uq.predicates...),
 		withGroups:   uq.withGroups.Clone(),
 		withParent:   uq.withParent.Clone(),
@@ -603,13 +518,6 @@ func (uq *UserQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := uq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := uq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

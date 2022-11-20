@@ -24,7 +24,6 @@ type NodeQuery struct {
 	limit        *int
 	offset       *int
 	unique       *bool
-	order        []OrderFunc
 	fields       []string
 	predicates   []predicate.Node
 	withParent   *NodeQuery
@@ -58,50 +57,6 @@ func (nq *NodeQuery) Offset(offset int) *NodeQuery {
 func (nq *NodeQuery) Unique(unique bool) *NodeQuery {
 	nq.unique = &unique
 	return nq
-}
-
-// Order adds an order step to the query.
-func (nq *NodeQuery) Order(o ...OrderFunc) *NodeQuery {
-	nq.order = append(nq.order, o...)
-	return nq
-}
-
-// QueryParent chains the current query on the "parent" edge.
-func (nq *NodeQuery) QueryParent() *NodeQuery {
-	query := &NodeQuery{config: nq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := nq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := nq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(node.Table, node.FieldID, selector),
-			dynamodbgraph.To(node.Table, node.FieldID, node.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, node.ParentTable, node.ParentAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryChildren chains the current query on the "children" edge.
-func (nq *NodeQuery) QueryChildren() *NodeQuery {
-	query := &NodeQuery{config: nq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := nq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := nq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(node.Table, node.FieldID, selector),
-			dynamodbgraph.To(node.Table, node.FieldID, node.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, node.ChildrenTable, node.ChildrenAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Node entity from the query.
@@ -283,7 +238,6 @@ func (nq *NodeQuery) Clone() *NodeQuery {
 		config:       nq.config,
 		limit:        nq.limit,
 		offset:       nq.offset,
-		order:        append([]OrderFunc{}, nq.order...),
 		predicates:   append([]predicate.Node{}, nq.predicates...),
 		withParent:   nq.withParent.Clone(),
 		withChildren: nq.withChildren.Clone(),
@@ -486,13 +440,6 @@ func (nq *NodeQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := nq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := nq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

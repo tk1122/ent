@@ -8,7 +8,6 @@ package blob
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/predicate"
 	uuid "github.com/satori/go.uuid"
 )
@@ -152,62 +151,6 @@ func UUIDLT(v uuid.UUID) predicate.Blob {
 func UUIDLTE(v uuid.UUID) predicate.Blob {
 	return predicate.Blob(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.LTE(FieldUUID, v))
-	})
-}
-
-// HasParent applies the HasEdge predicate on the "parent" edge.
-func HasParent() predicate.Blob {
-	return predicate.Blob(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(ParentTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, ParentTable, ParentAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasParentWith applies the HasEdge predicate on the "parent" edge with a given conditions (other predicates).
-func HasParentWith(preds ...predicate.Blob) predicate.Blob {
-	return predicate.Blob(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, ParentTable, ParentAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasLinks applies the HasEdge predicate on the "links" edge.
-func HasLinks() predicate.Blob {
-	return predicate.Blob(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(LinksTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, LinksTable, LinksAttributes...),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasLinksWith applies the HasEdge predicate on the "links" edge with a given conditions (other predicates).
-func HasLinksWith(preds ...predicate.Blob) predicate.Blob {
-	return predicate.Blob(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, true, LinksTable, LinksAttributes...),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
 	})
 }
 

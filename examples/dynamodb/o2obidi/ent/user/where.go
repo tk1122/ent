@@ -8,7 +8,6 @@ package user
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/examples/dynamodb/o2obidi/ent/predicate"
 )
 
@@ -236,34 +235,6 @@ func NameContains(v string) predicate.User {
 func NameHasPrefix(v string) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
 		s.Where(dynamodb.HasPrefix(FieldName, v))
-	})
-}
-
-// HasSpouse applies the HasEdge predicate on the "spouse" edge.
-func HasSpouse() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(SpouseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, SpouseTable, SpouseAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasSpouseWith applies the HasEdge predicate on the "spouse" edge with a given conditions (other predicates).
-func HasSpouseWith(preds ...predicate.User) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, true, SpouseTable, SpouseAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
 	})
 }
 

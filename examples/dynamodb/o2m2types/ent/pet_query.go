@@ -25,7 +25,6 @@ type PetQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Pet
 	withOwner  *UserQuery
@@ -58,31 +57,6 @@ func (pq *PetQuery) Offset(offset int) *PetQuery {
 func (pq *PetQuery) Unique(unique bool) *PetQuery {
 	pq.unique = &unique
 	return pq
-}
-
-// Order adds an order step to the query.
-func (pq *PetQuery) Order(o ...OrderFunc) *PetQuery {
-	pq.order = append(pq.order, o...)
-	return pq
-}
-
-// QueryOwner chains the current query on the "owner" edge.
-func (pq *PetQuery) QueryOwner() *UserQuery {
-	query := &UserQuery{config: pq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := pq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := pq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(pet.Table, pet.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, pet.OwnerTable, pet.OwnerAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Pet entity from the query.
@@ -264,7 +238,6 @@ func (pq *PetQuery) Clone() *PetQuery {
 		config:     pq.config,
 		limit:      pq.limit,
 		offset:     pq.offset,
-		order:      append([]OrderFunc{}, pq.order...),
 		predicates: append([]predicate.Pet{}, pq.predicates...),
 		withOwner:  pq.withOwner.Clone(),
 		// clone intermediate query.
@@ -425,13 +398,6 @@ func (pq *PetQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := pq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := pq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }
