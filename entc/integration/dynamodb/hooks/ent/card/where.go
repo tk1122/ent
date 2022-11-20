@@ -442,25 +442,26 @@ func HasOwnerWith(preds ...predicate.User) predicate.Card {
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Card) predicate.Card {
 	return predicate.Card(func(s *dynamodb.Selector) {
-		s1 := s.Clone()
+		var ps []*dynamodb.Predicate
 		for _, p := range predicates {
-			p(s1)
+			selector := dynamodb.Select()
+			p(selector)
+			ps = append(ps, selector.P())
 		}
-		s.Where(s1.P())
+		s.Where(dynamodb.And(ps...))
 	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.Card) predicate.Card {
 	return predicate.Card(func(s *dynamodb.Selector) {
-		s1 := s.Clone()
-		for i, p := range predicates {
-			if i > 0 {
-				s1.Or()
-			}
-			p(s1)
+		var ps []*dynamodb.Predicate
+		for _, p := range predicates {
+			selector := dynamodb.Select()
+			p(selector)
+			ps = append(ps, selector.P())
 		}
-		s.Where(s1.P())
+		s.Where(dynamodb.Or(ps...))
 	})
 }
 
