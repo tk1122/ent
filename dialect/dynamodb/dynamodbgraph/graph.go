@@ -999,7 +999,6 @@ func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int
 	if pred := spec.Predicate; pred != nil {
 		pred(selector)
 	}
-	selector = selector.BuildExpressions()
 	if id != nil {
 		return dl.deleteNode(ctx, id, selector, batchWrite)
 	}
@@ -1028,7 +1027,7 @@ func (dl *deleter) deleteNode(ctx context.Context, id interface{}, selector *dyn
 }
 
 func (dl *deleter) deleteNodes(ctx context.Context, selector *dynamodb.Selector, batchWrite *dynamodb.BatchWriteItemBuilder) (int, error) {
-	op, args := dl.Select().From(dl.DeleteSpec.Node.Table).Where(selector.P()).Op()
+	op, args := dl.Select().From(dl.DeleteSpec.Node.Table).Where(selector.P()).BuildExpressions().Op()
 	var scanOutput sdk.ScanOutput
 	if err := dl.tx.Exec(ctx, op, args, &scanOutput); err != nil {
 		return 0, fmt.Errorf("delete nodes failed: %w", err)
