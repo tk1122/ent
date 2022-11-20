@@ -80,6 +80,7 @@ func ({{ $receiver }} *{{ $builder }}) Order(o ...OrderFunc) *{{ $builder }} {
 }
 {{- end }}
 
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{/* this code has similarity with edge queries in client.tmpl */}}
 {{ range $e := $.Edges }}
 	{{ $edge_builder := print (pascal $e.Type.Name) "Query" }}
@@ -99,6 +100,7 @@ func ({{ $receiver }} *{{ $builder }}) Order(o ...OrderFunc) *{{ $builder }} {
 		return query
 	}
 {{ end }}
+{{- end }}
 
 // First returns the first {{ $.Name }} entity from the query. 
 // Returns a *NotFoundError when no {{ $.Name }} was found.

@@ -94,6 +94,7 @@ in the LICENSE file in the root directory of this source tree.
 	{{ end }}
 {{ end }}
 
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{ range $e := $.Edges }}
 	{{ $func := print "Has" $e.StructField }}
 	// {{ $func }} applies the HasEdge predicate on the {{ quote $e.Name }} edge.
@@ -116,6 +117,7 @@ in the LICENSE file in the root directory of this source tree.
 		)
 	}
 {{ end }}
+{{- end }}
 
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.{{ $.Name }}) predicate.{{ $.Name }} {

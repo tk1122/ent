@@ -493,26 +493,6 @@ func Edge(rel Rel, inverse bool, bidi bool, table string, attrs ...string) StepO
 	}
 }
 
-// HasNeighbors applies on the given Selector a neighbors check.
-func HasNeighbors(q *dynamodb.Selector, s *Step) {
-	HasNeighborsWith(q, s, func(*dynamodb.Selector) {})
-}
-
-// HasNeighborsWith applies on the given Selector a neighbors check.
-// The given predicate applies its filtering on the selector.
-func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Selector)) {
-	switch r := s.Edge.Rel; {
-	case r == M2M && s.Edge.Inverse:
-
-	case r == M2M && !s.Edge.Inverse:
-
-	case r == M2O || (r == O2O && s.Edge.Inverse):
-		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
-	case r == O2M || (r == O2O && !s.Edge.Inverse):
-		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
-	}
-}
-
 // Neighbors returns a Selector for evaluating the path-step
 // and getting the neighbors of one vertex.
 func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
@@ -597,103 +577,6 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V))
 	}
 	return q
-}
-
-// SetNeighbors returns a Selector for evaluating the path-step
-// and getting the neighbors of set of vertices.
-func SetNeighbors(s *Step) (q *dynamodb.Selector) {
-	//set := s.From.V.(*mongo.Selector)
-	//q = mongo.Select().From(set.Collection()).AppendStages(set.Pipeline()...)
-	//
-	//switch r := s.Edge.Rel; {
-	//case r == M2M && s.Edge.Inverse:
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.Edge.Keys[0]).
-	//		ForeignField(s.To.Key).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//
-	//	g := mongo.Group().ID(s.To.Key)
-	//	for _, k := range s.To.CollectionKeys {
-	//		if s.To.Key != k {
-	//			g.AppendOps(mongo.First(k, k))
-	//		}
-	//	}
-	//	q.AppendStages(g.Stage())
-	//	q.Lock()
-	//
-	//case r == M2M && !s.Edge.Inverse:
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.To.Key).
-	//		ForeignField(s.Edge.Keys[0]).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//
-	//	g := mongo.Group().ID(s.To.Key)
-	//	for _, k := range s.To.CollectionKeys {
-	//		if s.To.Key != k {
-	//			g.AppendOps(mongo.First(k, k))
-	//		}
-	//	}
-	//	q.AppendStages(g.Stage())
-	//	q.Lock()
-	//
-	//case r == M2O || (r == O2O && s.Edge.Inverse):
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.Edge.Keys[0]).
-	//		ForeignField(s.To.Key).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//
-	//	if r == M2O {
-	//		g := mongo.Group().ID(s.To.Key)
-	//		for _, k := range s.To.CollectionKeys {
-	//			if s.To.Key != k {
-	//				g.AppendOps(mongo.First(k, k))
-	//			}
-	//		}
-	//		q.AppendStages(g.Stage())
-	//	}
-	//	q.Lock()
-	//
-	//case r == O2M || (r == O2O && !s.Edge.Inverse):
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.From.Key).
-	//		ForeignField(s.Edge.Keys[0]).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//	q.Lock()
-	//}
-	//return q
-	return nil
 }
 
 // QueryNodes queries the nodes in the graph query and scans them to the given values.
