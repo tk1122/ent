@@ -314,7 +314,6 @@ type Selector struct {
 	exp            expression.Expression
 	isBuilderEmpty bool
 	not            bool
-	or             bool
 	orderDesc      bool
 	errs           []error // errors that added during the selection construction.
 }
@@ -372,12 +371,6 @@ func (s *Selector) Clone() *Selector {
 // P returns the predicate of a selector.
 func (s *Selector) P() *Predicate {
 	return s.query
-}
-
-// Or sets the next coming predicate with OR operator (disjunction).
-func (s *Selector) Or() *Selector {
-	s.or = true
-	return s
 }
 
 // Not sets the next coming predicate with not.
