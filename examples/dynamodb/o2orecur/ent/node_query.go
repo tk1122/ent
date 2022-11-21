@@ -9,6 +9,7 @@ package ent
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
@@ -444,7 +445,16 @@ func (nq *NodeQuery) querySpec() *dynamodbgraph.QuerySpec {
 }
 
 func (nq *NodeQuery) dynamodbQuery(ctx context.Context) *dynamodb.Selector {
-	return nil
+	c1 := node.Table
+	selector := dynamodb.Select(node.Keys...).From(c1)
+	if nq.dynamodb != nil {
+		selector = nq.dynamodb
+		selector.Select(node.Keys...)
+	}
+	for _, p := range nq.predicates {
+		p(selector)
+	}
+	return selector
 }
 
 // NodeSelect is the builder for selecting fields of Node entities.
@@ -464,9 +474,58 @@ func (ns *NodeSelect) Scan(ctx context.Context, v any) error {
 }
 
 func (ns *NodeSelect) dynamodbScan(ctx context.Context, v interface{}) error {
+	selector := ns.dynamodbQuery()
+	op, args := selector.BuildExpressions().Op()
+	var scanOutput sdk.ScanOutput
+	if err := ns.driver.Exec(ctx, op, args, &scanOutput); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+	key := ns.fields[0]
+	switch vv := v.(type) {
+	case *[]string:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberS); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	case *[]int:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.Atoi(v.Value)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]float64:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.ParseFloat(v.Value, 64)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]bool:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberBOOL); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	}
 	return nil
 }
 
 func (ns *NodeSelect) dynamodbQuery() *dynamodb.Selector {
-	return nil
+	selector := ns.dynamodb
+	selector.Select(ns.fields...)
+	return selector
 }

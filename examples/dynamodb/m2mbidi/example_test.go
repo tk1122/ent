@@ -60,8 +60,6 @@ func Do(ctx context.Context, client *ent.Client) error {
 	fmt.Println(friends)
 	// Output: [User(id=2, age=28, name=nati)]
 
-	_, _ = client.User.UpdateOne(a8m).ClearFriends().Save(ctx)
-
 	//// Query the graph:
 	//friends = client.User.
 	//	Query().

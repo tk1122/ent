@@ -10,7 +10,6 @@ import (
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/o2obidi/ent"
-	"entgo.io/ent/examples/dynamodb/o2obidi/ent/user"
 )
 
 func Example_O2OBidi() {
@@ -64,15 +63,15 @@ func Do(ctx context.Context, client *ent.Client) error {
 	fmt.Println(spouse.Name)
 	// Output: nati
 
-	// Query how many users have a spouse.
-	// Unlike `Count`, `CountX` panics if an error occurs.
-	count := client.User.
-		Query().
-		Where(user.HasSpouse()).
-		CountX(ctx)
-	fmt.Println(count)
-	// Output: 2
-
+	//// Query how many users have a spouse.
+	//// Unlike `Count`, `CountX` panics if an error occurs.
+	//count := client.User.
+	//	Query().
+	//	Where(user.HasSpouse()).
+	//	CountX(ctx)
+	//fmt.Println(count)
+	//// Output: 2
+	//
 	//// Get the user, that has a spouse with name="a8m".
 	//spouse = client.User.
 	//	Query().

@@ -10,7 +10,6 @@ import (
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/o2mrecur/ent"
-	"entgo.io/ent/examples/dynamodb/o2mrecur/ent/node"
 )
 
 func Example_O2MRecur() {
@@ -89,15 +88,15 @@ func Do(ctx context.Context, client *ent.Client) error {
 	//	AllX(ctx)
 	//fmt.Println(ints)
 	////Output: [1 3 5]
-
-	// Get orphan nodes (nodes without parent).
-	// Unlike `Only`, `OnlyX` panics if an error occurs.
-	orphan := client.Node.
-		Query().
-		Where(node.Not(node.HasParent())).
-		OnlyX(ctx)
-	fmt.Println(orphan)
-	// Output: Node(id=1, value=2)
+	//
+	//// Get orphan nodes (nodes without parent).
+	//// Unlike `Only`, `OnlyX` panics if an error occurs.
+	//orphan := client.Node.
+	//	Query().
+	//	Where(node.Not(node.HasParent())).
+	//	OnlyX(ctx)
+	//fmt.Println(orphan)
+	//// Output: Node(id=1, value=2)
 
 	return nil
 }

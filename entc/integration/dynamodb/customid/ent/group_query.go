@@ -9,6 +9,7 @@ package ent
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
@@ -386,7 +387,16 @@ func (gq *GroupQuery) querySpec() *dynamodbgraph.QuerySpec {
 }
 
 func (gq *GroupQuery) dynamodbQuery(ctx context.Context) *dynamodb.Selector {
-	return nil
+	c1 := group.Table
+	selector := dynamodb.Select(group.Keys...).From(c1)
+	if gq.dynamodb != nil {
+		selector = gq.dynamodb
+		selector.Select(group.Keys...)
+	}
+	for _, p := range gq.predicates {
+		p(selector)
+	}
+	return selector
 }
 
 // GroupSelect is the builder for selecting fields of Group entities.
@@ -406,9 +416,58 @@ func (gs *GroupSelect) Scan(ctx context.Context, v any) error {
 }
 
 func (gs *GroupSelect) dynamodbScan(ctx context.Context, v interface{}) error {
+	selector := gs.dynamodbQuery()
+	op, args := selector.BuildExpressions().Op()
+	var scanOutput sdk.ScanOutput
+	if err := gs.driver.Exec(ctx, op, args, &scanOutput); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+	key := gs.fields[0]
+	switch vv := v.(type) {
+	case *[]string:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberS); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	case *[]int:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.Atoi(v.Value)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]float64:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.ParseFloat(v.Value, 64)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]bool:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberBOOL); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	}
 	return nil
 }
 
 func (gs *GroupSelect) dynamodbQuery() *dynamodb.Selector {
-	return nil
+	selector := gs.dynamodb
+	selector.Select(gs.fields...)
+	return selector
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"entgo.io/ent/examples/dynamodb/o2o2types/ent"
+	"entgo.io/ent/examples/dynamodb/o2o2types/ent/user"
 )
 
 func Example_O2O2Types() {
@@ -59,6 +60,10 @@ func Do(ctx context.Context, client *ent.Client) error {
 		return fmt.Errorf("creating card: %w", err)
 	}
 	fmt.Println("card:", card1)
+
+	ids, err := client.User.Query().Where(user.ID(2)).IDs(ctx)
+	fmt.Println(ids)
+
 	//// Only returns the card of the user,
 	//// and expects that there's only one.
 	//card2, err := a8m.QueryCard().Only(ctx)
