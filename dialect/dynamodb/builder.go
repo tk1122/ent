@@ -75,13 +75,7 @@ const (
 )
 
 type (
-	// CreateTableArgs contains input for CreateTable operation.
-	CreateTableArgs struct {
-		Name string
-		Opts *dynamodb.CreateTableInput
-	}
-
-	// CreateTableBuilder is the builder for CreateTableArgs.
+	// CreateTableBuilder is the builder for CreateTable operation.
 	CreateTableBuilder struct {
 		attributeDefinitions []types.AttributeDefinition
 		keySchema            []types.KeySchemaElement
@@ -119,24 +113,16 @@ func (c *CreateTableBuilder) SetProvisionedThroughput(readCap, writeCap int) *Cr
 
 // Op returns name and input for CreateTable operation.
 func (c *CreateTableBuilder) Op() (string, interface{}) {
-	return CreateTableOperation, &CreateTableArgs{
-		Name: c.tableName,
-		Opts: &dynamodb.CreateTableInput{
-			TableName:             aws.String(c.tableName),
-			AttributeDefinitions:  c.attributeDefinitions,
-			KeySchema:             c.keySchema,
-			ProvisionedThroughput: c.provisiondThroughput,
-		},
+	return CreateTableOperation, &dynamodb.CreateTableInput{
+		TableName:             aws.String(c.tableName),
+		AttributeDefinitions:  c.attributeDefinitions,
+		KeySchema:             c.keySchema,
+		ProvisionedThroughput: c.provisiondThroughput,
 	}
 }
 
 type (
-	// PutItemArgs contains input for PutItem operation.
-	PutItemArgs struct {
-		Opts *dynamodb.PutItemInput
-	}
-
-	// PutItemBuilder is the builder for PutItemArgs.
+	// PutItemBuilder is the builder for PutItem operation.
 	PutItemBuilder struct {
 		item      map[string]types.AttributeValue
 		tableName string
@@ -151,11 +137,9 @@ func (p *PutItemBuilder) SetItem(i map[string]types.AttributeValue) *PutItemBuil
 
 // Op returns name and input for PutItem operation.
 func (p *PutItemBuilder) Op() (string, interface{}) {
-	return PutItemOperation, &PutItemArgs{
-		Opts: &dynamodb.PutItemInput{
-			TableName: aws.String(p.tableName),
-			Item:      p.item,
-		},
+	return PutItemOperation, &dynamodb.PutItemInput{
+		TableName: aws.String(p.tableName),
+		Item:      p.item,
 	}
 }
 
@@ -317,12 +301,6 @@ type Selector struct {
 	orderDesc      bool
 	errs           []error // errors that added during the selection construction.
 }
-
-// ordering direction aliases.
-const (
-	Asc  = true
-	Desc = false
-)
 
 func Select(keys ...string) *Selector {
 	return (&Selector{

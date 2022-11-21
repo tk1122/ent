@@ -268,8 +268,7 @@ func (g *graph) addFKEdges(ctx context.Context, ids []interface{}, edges []*Edge
 				return fmt.Errorf("build update query for table %s: %w", edge.Table, err)
 			}
 			op, input := query.Op()
-			var output sdk.UpdateItemOutput
-			if err := g.tx.Exec(ctx, op, input, &output); err != nil {
+			if err := g.tx.Exec(ctx, op, input, &sdk.UpdateItemOutput{}); err != nil {
 				return fmt.Errorf("add %s edge for table %s: %w", edge.Rel, edge.Table, err)
 			}
 		}
@@ -303,8 +302,7 @@ func (g *graph) clearFKEdges(ctx context.Context, ids []interface{}, edges []*Ed
 				return fmt.Errorf("remove %s edge for table %s: %w", edge.Rel, edge.Table, err)
 			}
 			op, input := query.Op()
-			var output sdk.UpdateItemOutput
-			if err := g.tx.Exec(ctx, op, input, &output); err != nil {
+			if err := g.tx.Exec(ctx, op, input, &sdk.UpdateItemOutput{}); err != nil {
 				return fmt.Errorf("remove %s edge for table %s: %w", edge.Rel, edge.Table, err)
 			}
 		}

@@ -84,23 +84,9 @@ func (c Client) Query(ctx context.Context, op string, args, v any) error {
 func (c Client) run(ctx context.Context, op string, args, v interface{}) error {
 	switch op {
 	case CreateTableOperation:
-		createTableArgs := args.(*CreateTableArgs)
-		_, err := c.CreateTable(ctx, createTableArgs.Opts)
-		if err != nil {
-			var inUseEx *types.ResourceInUseException
-			if !errors.As(err, &inUseEx) {
-				return err
-			}
-		}
-		waiter := dynamodb.NewTableExistsWaiter(c)
-		err = waiter.Wait(ctx, &dynamodb.DescribeTableInput{
-			TableName: aws.String(createTableArgs.Name),
-		}, 30*time.Second)
-		return err
+		return c.createTable(ctx, args, v)
 	case PutItemOperation:
-		putItemArgs := args.(*PutItemArgs)
-		_, err := c.PutItem(ctx, putItemArgs.Opts)
-		return err
+		return c.putItem(ctx, args, v)
 	case UpdateItemOperation:
 		return c.updateItem(ctx, args, v)
 	case BatchWriteOperation:
@@ -112,6 +98,32 @@ func (c Client) run(ctx context.Context, op string, args, v interface{}) error {
 	default:
 		return fmt.Errorf("%s operation is unsupported", op)
 	}
+}
+
+func (c Client) createTable(ctx context.Context, args, v interface{}) (err error) {
+	createTableArgs := args.(*dynamodb.CreateTableInput)
+	output := v.(*dynamodb.CreateTableOutput)
+	res, err := c.CreateTable(ctx, createTableArgs)
+	if err != nil {
+		var inUseEx *types.ResourceInUseException
+		if !errors.As(err, &inUseEx) {
+			return err
+		}
+	}
+	waiter := dynamodb.NewTableExistsWaiter(c)
+	err = waiter.Wait(ctx, &dynamodb.DescribeTableInput{
+		TableName: createTableArgs.TableName,
+	}, 30*time.Second)
+	*output = *res
+	return err
+}
+
+func (c Client) putItem(ctx context.Context, args, v interface{}) (err error) {
+	output := v.(*dynamodb.PutItemOutput)
+	putItemArgs := args.(*dynamodb.PutItemInput)
+	res, err := c.PutItem(ctx, putItemArgs)
+	*output = *res
+	return err
 }
 
 func (c Client) updateItem(ctx context.Context, args, v interface{}) (err error) {
@@ -133,9 +145,9 @@ func (c Client) batchWrite(ctx context.Context, args, v interface{}) (err error)
 			opName, opArgs := op.Op()
 			switch opName {
 			case PutItemOperation:
-				input := opArgs.(*PutItemArgs)
+				input := opArgs.(*dynamodb.PutItemInput)
 				requestItems[tableName] = append(requestItems[tableName], types.WriteRequest{
-					PutRequest: &types.PutRequest{Item: input.Opts.Item},
+					PutRequest: &types.PutRequest{Item: input.Item},
 				})
 			case DeletItemOperation:
 				input := opArgs.(*dynamodb.DeleteItemInput)
