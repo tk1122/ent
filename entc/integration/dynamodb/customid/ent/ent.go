@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	"entgo.io/ent"
-	"entgo.io/ent/dialect/dynamodb"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -24,23 +23,6 @@ type (
 	Mutation   = ent.Mutation
 	MutateFunc = ent.MutateFunc
 )
-
-// OrderFunc applies an ordering on the dynamodb selector.
-type OrderFunc func(*dynamodb.Selector)
-
-// Asc applies the ordering by the key used in the query in ASC order.
-func Asc() OrderFunc {
-	return func(s *dynamodb.Selector) {
-		s.OrderBy(dynamodb.Asc)
-	}
-}
-
-// Desc applies the ordering by the key used in the query in DESC order.
-func Desc() OrderFunc {
-	return func(s *dynamodb.Selector) {
-		s.OrderBy(dynamodb.Desc)
-	}
-}
 
 // ValidationError returns when validating a field or edge fails.
 type ValidationError struct {

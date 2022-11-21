@@ -8,7 +8,6 @@ package user
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/examples/dynamodb/m2mrecur/ent/predicate"
 )
 
@@ -239,84 +238,29 @@ func NameHasPrefix(v string) predicate.User {
 	})
 }
 
-// HasFollowers applies the HasEdge predicate on the "followers" edge.
-func HasFollowers() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(FollowersTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, true, false, FollowersTable, FollowersAttributes...),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasFollowersWith applies the HasEdge predicate on the "followers" edge with a given conditions (other predicates).
-func HasFollowersWith(preds ...predicate.User) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, true, false, FollowersTable, FollowersAttributes...),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasFollowing applies the HasEdge predicate on the "following" edge.
-func HasFollowing() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(FollowingTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, false, FollowingTable, FollowingAttributes...),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasFollowingWith applies the HasEdge predicate on the "following" edge with a given conditions (other predicates).
-func HasFollowingWith(preds ...predicate.User) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(Table, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, false, FollowingTable, FollowingAttributes...),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.User) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s1 := s.Clone()
+		var ps []*dynamodb.Predicate
 		for _, p := range predicates {
-			p(s1)
+			selector := dynamodb.Select()
+			p(selector)
+			ps = append(ps, selector.P())
 		}
-		s.Where(s1.P())
+		s.Where(dynamodb.And(ps...))
 	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.User) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s1 := s.Clone()
-		for i, p := range predicates {
-			if i > 0 {
-				s1.Or()
-			}
-			p(s1)
+		var ps []*dynamodb.Predicate
+		for _, p := range predicates {
+			selector := dynamodb.Select()
+			p(selector)
+			ps = append(ps, selector.P())
 		}
-		s.Where(s1.P())
+		s.Where(dynamodb.Or(ps...))
 	})
 }
 

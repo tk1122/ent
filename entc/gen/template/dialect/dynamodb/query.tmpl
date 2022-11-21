@@ -113,13 +113,6 @@ func ({{ $receiver }} *{{ $builder }}) querySpec() *dynamodbgraph.QuerySpec {
 	if offset := {{ $receiver }}.offset; offset != nil {
 		_spec.Offset = *offset
 	}
-	if ps := {{ $receiver }}.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
-	}
 	return _spec
 }
 
@@ -129,25 +122,25 @@ func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynam
 {{ end }}
 
 {{/* query/path defines the query generation for path of a given edge. */}}
-{{ define "dialect/dynamodb/query/path" }}
-	{{- $n := $ }} {{/* the node we start the query from. */}}
-	{{- $e := $.Scope.Edge }} {{/* the edge we need to genegrate the path to. */}}
-	{{- $ident := $.Scope.Ident -}}
-	{{- $receiver := $.Scope.Receiver }}
-	selector := {{ $receiver }}.dynamodbQuery(ctx)
-	step := dynamodbgraph.NewStep(
-		dynamodbgraph.From({{ $n.Package }}.Table, {{ $n.Package }}.{{ $n.ID.Constant }}, selector),
-		dynamodbgraph.To({{ $e.Type.Package }}.Table, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, {{ $e.Type.Package }}.Keys),
-		dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.TableConstant }},
-			{{- if $e.M2M -}}
-				{{ $n.Package }}.{{ $e.AttributesConstant }}...
-			{{- else -}}
-				{{ $n.Package }}.{{ $e.AttributeConstant }}
-			{{- end -}}
-		),
-	)
-	{{ $ident }} = dynamodbgraph.SetNeighbors(step)
-{{ end }}
+{{/*{{ define "dialect/dynamodb/query/path" }}*/}}
+{{/*	{{- $n := $ }} */}}{{/* the node we start the query from. */}}
+{{/*	{{- $e := $.Scope.Edge }} */}}{{/* the edge we need to genegrate the path to. */}}
+{{/*	{{- $ident := $.Scope.Ident -}}*/}}
+{{/*	{{- $receiver := $.Scope.Receiver }}*/}}
+{{/*	selector := {{ $receiver }}.dynamodbQuery(ctx)*/}}
+{{/*	step := dynamodbgraph.NewStep(*/}}
+{{/*		dynamodbgraph.From({{ $n.Package }}.Table, {{ $n.Package }}.{{ $n.ID.Constant }}, selector),*/}}
+{{/*		dynamodbgraph.To({{ $e.Type.Package }}.Table, {{ $e.Type.Package }}.{{ $e.Type.ID.Constant }}, {{ $e.Type.Package }}.Keys),*/}}
+{{/*		dynamodbgraph.Edge(dynamodbgraph.{{ $e.Rel.Type }}, {{ $e.IsInverse }}, {{ $e.Bidi }}, {{ $n.Package }}.{{ $e.TableConstant }},*/}}
+{{/*			{{- if $e.M2M -}}*/}}
+{{/*				{{ $n.Package }}.{{ $e.AttributesConstant }}...*/}}
+{{/*			{{- else -}}*/}}
+{{/*				{{ $n.Package }}.{{ $e.AttributeConstant }}*/}}
+{{/*			{{- end -}}*/}}
+{{/*		),*/}}
+{{/*	)*/}}
+{{/*	{{ $ident }} = dynamodbgraph.SetNeighbors(step)*/}}
+{{/*{{ end }}*/}}
 
 {{/* query/from defines the query generation for an edge query from a given node. */}}
 {{ define "dialect/dynamodb/query/from" }}

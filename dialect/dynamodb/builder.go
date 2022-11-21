@@ -50,10 +50,10 @@ func (d RootBuilder) DeleteItem(tableName string) *DeleteItemBuilder {
 // Update returns a builder for UpdateItem operation.
 func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 	return &UpdateItemBuilder{
-		tableName:          tableName,
-		expBuilder:         expression.NewBuilder(),
-		key:                make(map[string]types.AttributeValue),
-		updateAttributeMap: make(map[string]interface{}),
+		tableName:         tableName,
+		expBuilder:        expression.NewBuilder(),
+		key:               make(map[string]types.AttributeValue),
+		updatedAttributes: make(map[string]interface{}),
 	}
 }
 
@@ -162,13 +162,13 @@ func (p *PutItemBuilder) Op() (string, interface{}) {
 type (
 	// UpdateItemBuilder is the builder for UpdateItem operation.
 	UpdateItemBuilder struct {
-		tableName          string
-		key                map[string]types.AttributeValue
-		updateAttributeMap map[string]interface{}
-		removeAttributes   []string
-		expBuilder         expression.Builder
-		exp                expression.Expression
-		returnValues       types.ReturnValue
+		tableName         string
+		key               map[string]types.AttributeValue
+		updatedAttributes map[string]interface{}
+		removedAttributes []string
+		expBuilder        expression.Builder
+		exp               expression.Expression
+		returnValues      types.ReturnValue
 	}
 )
 
@@ -180,13 +180,13 @@ func (u *UpdateItemBuilder) WithKey(k string, v types.AttributeValue) *UpdateIte
 
 // Set sets the attribute to be updated.
 func (u *UpdateItemBuilder) Set(k string, v interface{}) *UpdateItemBuilder {
-	u.updateAttributeMap[k] = v
+	u.updatedAttributes[k] = v
 	return u
 }
 
 // Remove clears the attribute of the item.
 func (u *UpdateItemBuilder) Remove(k string) *UpdateItemBuilder {
-	u.removeAttributes = append(u.removeAttributes, k)
+	u.removedAttributes = append(u.removedAttributes, k)
 	return u
 }
 
@@ -202,7 +202,7 @@ func (u *UpdateItemBuilder) BuildExpression(rv types.ReturnValue) (*UpdateItemBu
 	u.returnValues = rv
 	var setExp expression.UpdateBuilder
 	i := 0
-	for attr, val := range u.updateAttributeMap {
+	for attr, val := range u.updatedAttributes {
 		if i == 0 {
 			setExp = expression.Set(expression.Name(attr), expression.Value(val))
 		} else {
@@ -211,8 +211,8 @@ func (u *UpdateItemBuilder) BuildExpression(rv types.ReturnValue) (*UpdateItemBu
 		}
 		i += 1
 	}
-	for _, attr := range u.removeAttributes {
-		if _, ok := u.updateAttributeMap[attr]; ok {
+	for _, attr := range u.removedAttributes {
+		if _, ok := u.updatedAttributes[attr]; ok {
 			continue
 		}
 		if i == 0 {
@@ -314,7 +314,6 @@ type Selector struct {
 	exp            expression.Expression
 	isBuilderEmpty bool
 	not            bool
-	or             bool
 	orderDesc      bool
 	errs           []error // errors that added during the selection construction.
 }
@@ -372,12 +371,6 @@ func (s *Selector) Clone() *Selector {
 // P returns the predicate of a selector.
 func (s *Selector) P() *Predicate {
 	return s.query
-}
-
-// Or sets the next coming predicate with OR operator (disjunction).
-func (s *Selector) Or() *Selector {
-	s.or = true
-	return s
 }
 
 // Not sets the next coming predicate with not.

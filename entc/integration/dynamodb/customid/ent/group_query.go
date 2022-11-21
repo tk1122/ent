@@ -25,7 +25,6 @@ type GroupQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Group
 	withUsers  *UserQuery
@@ -57,31 +56,6 @@ func (gq *GroupQuery) Offset(offset int) *GroupQuery {
 func (gq *GroupQuery) Unique(unique bool) *GroupQuery {
 	gq.unique = &unique
 	return gq
-}
-
-// Order adds an order step to the query.
-func (gq *GroupQuery) Order(o ...OrderFunc) *GroupQuery {
-	gq.order = append(gq.order, o...)
-	return gq
-}
-
-// QueryUsers chains the current query on the "users" edge.
-func (gq *GroupQuery) QueryUsers() *UserQuery {
-	query := &UserQuery{config: gq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := gq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := gq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(group.Table, group.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2M, false, false, group.UsersTable, group.UsersAttributes...),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Group entity from the query.
@@ -263,7 +237,6 @@ func (gq *GroupQuery) Clone() *GroupQuery {
 		config:     gq.config,
 		limit:      gq.limit,
 		offset:     gq.offset,
-		order:      append([]OrderFunc{}, gq.order...),
 		predicates: append([]predicate.Group{}, gq.predicates...),
 		withUsers:  gq.withUsers.Clone(),
 		// clone intermediate query.
@@ -408,13 +381,6 @@ func (gq *GroupQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := gq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := gq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

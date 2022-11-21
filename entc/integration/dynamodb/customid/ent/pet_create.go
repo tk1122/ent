@@ -285,3 +285,63 @@ func (pc *PetCreate) createSpec() (*Pet, *dynamodbgraph.CreateSpec) {
 	}
 	return _node, _spec
 }
+
+// PetCreateBulk is the builder for creating many Pet entities in bulk.
+type PetCreateBulk struct {
+	config
+	builders []*PetCreate
+}
+
+// Save creates the Pet entities in the database.
+func (pcb *PetCreateBulk) Save(ctx context.Context) ([]*Pet, error) {
+	specs := make([]*dynamodbgraph.CreateSpec, len(pcb.builders))
+	nodes := make([]*Pet, len(pcb.builders))
+	mutators := make([]Mutator, len(pcb.builders))
+	for i := range pcb.builders {
+		func(i int, root context.Context) {
+			builder := pcb.builders[i]
+			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
+				mutation, ok := m.(*PetMutation)
+				if !ok {
+					return nil, fmt.Errorf("unexpected mutation type %T", m)
+				}
+				if err := builder.check(); err != nil {
+					return nil, err
+				}
+				builder.mutation = mutation
+				nodes[i], specs[i] = builder.createSpec()
+				var err error
+				if i < len(mutators)-1 {
+					_, err = mutators[i+1].Mutate(root, pcb.builders[i+1].mutation)
+				} else {
+					// Invoke the actual operation on the latest mutation in the chain.
+					err = dynamodbgraph.BatchCreate(ctx, pcb.driver, &dynamodbgraph.BatchCreateSpec{Nodes: specs})
+				}
+				mutation.done = true
+				if err != nil {
+					return nil, err
+				}
+				return nodes[i], nil
+			})
+			for i := len(builder.hooks) - 1; i >= 0; i-- {
+				mut = builder.hooks[i](mut)
+			}
+			mutators[i] = mut
+		}(i, ctx)
+	}
+	if len(mutators) > 0 {
+		if _, err := mutators[0].Mutate(ctx, pcb.builders[0].mutation); err != nil {
+			return nil, err
+		}
+	}
+	return nodes, nil
+}
+
+// SaveX calls Save and panics if Save returns an error.
+func (pcb *PetCreateBulk) SaveX(ctx context.Context) []*Pet {
+	v, err := pcb.Save(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}

@@ -28,7 +28,9 @@ type {{ $builder }} struct {
 	limit		*int
 	offset		*int
 	unique		*bool
+	{{- if ne $.Config.Storage.Name "dynamodb" }}
 	order		[]OrderFunc
+	{{- end }}
 	fields		[]string
 	predicates 	[]predicate.{{ $.Name }}
 	{{- /* Eager loading fields. */}}
@@ -70,12 +72,15 @@ func ({{ $receiver }} *{{ $builder }}) Unique(unique bool) *{{ $builder }} {
 	return {{ $receiver }}
 }
 
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 // Order adds an order step to the query.
 func ({{ $receiver }} *{{ $builder }}) Order(o ...OrderFunc) *{{ $builder }} {
 	{{ $receiver }}.order = append({{ $receiver }}.order, o...)
 	return {{ $receiver }}
 }
+{{- end }}
 
+{{- if ne $.Config.Storage.Name "dynamodb" }}
 {{/* this code has similarity with edge queries in client.tmpl */}}
 {{ range $e := $.Edges }}
 	{{ $edge_builder := print (pascal $e.Type.Name) "Query" }}
@@ -95,6 +100,7 @@ func ({{ $receiver }} *{{ $builder }}) Order(o ...OrderFunc) *{{ $builder }} {
 		return query
 	}
 {{ end }}
+{{- end }}
 
 // First returns the first {{ $.Name }} entity from the query. 
 // Returns a *NotFoundError when no {{ $.Name }} was found.
@@ -281,7 +287,9 @@ func ({{ $receiver }} *{{ $builder }}) Clone() *{{ $builder }} {
 		config: 	{{ $receiver }}.config,
 		limit: 		{{ $receiver }}.limit,
 		offset: 	{{ $receiver }}.offset,
+		{{- if ne $.Config.Storage.Name "dynamodb" }}
 		order: 		append([]OrderFunc{}, {{ $receiver }}.order...),
+		{{- end }}
 		predicates: append([]predicate.{{ $.Name }}{}, {{ $receiver }}.predicates...),
 		{{- range $e := $.Edges }}
 			{{ $e.EagerLoadField }}: {{ $receiver }}.{{ $e.EagerLoadField }}.Clone(),

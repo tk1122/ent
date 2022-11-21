@@ -493,26 +493,6 @@ func Edge(rel Rel, inverse bool, bidi bool, table string, attrs ...string) StepO
 	}
 }
 
-// HasNeighbors applies on the given Selector a neighbors check.
-func HasNeighbors(q *dynamodb.Selector, s *Step) {
-	HasNeighborsWith(q, s, func(*dynamodb.Selector) {})
-}
-
-// HasNeighborsWith applies on the given Selector a neighbors check.
-// The given predicate applies its filtering on the selector.
-func HasNeighborsWith(q *dynamodb.Selector, s *Step, preds func(*dynamodb.Selector)) {
-	switch r := s.Edge.Rel; {
-	case r == M2M && s.Edge.Inverse:
-
-	case r == M2M && !s.Edge.Inverse:
-
-	case r == M2O || (r == O2O && s.Edge.Inverse):
-		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
-	case r == O2M || (r == O2O && !s.Edge.Inverse):
-		q.Where(dynamodb.Exist(s.Edge.Attributes[0]))
-	}
-}
-
 // Neighbors returns a Selector for evaluating the path-step
 // and getting the neighbors of one vertex.
 func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
@@ -597,103 +577,6 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 			Where(dynamodb.EQ(s.Edge.Attributes[0], s.From.V))
 	}
 	return q
-}
-
-// SetNeighbors returns a Selector for evaluating the path-step
-// and getting the neighbors of set of vertices.
-func SetNeighbors(s *Step) (q *dynamodb.Selector) {
-	//set := s.From.V.(*mongo.Selector)
-	//q = mongo.Select().From(set.Collection()).AppendStages(set.Pipeline()...)
-	//
-	//switch r := s.Edge.Rel; {
-	//case r == M2M && s.Edge.Inverse:
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.Edge.Keys[0]).
-	//		ForeignField(s.To.Key).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//
-	//	g := mongo.Group().ID(s.To.Key)
-	//	for _, k := range s.To.CollectionKeys {
-	//		if s.To.Key != k {
-	//			g.AppendOps(mongo.First(k, k))
-	//		}
-	//	}
-	//	q.AppendStages(g.Stage())
-	//	q.Lock()
-	//
-	//case r == M2M && !s.Edge.Inverse:
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.To.Key).
-	//		ForeignField(s.Edge.Keys[0]).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//
-	//	g := mongo.Group().ID(s.To.Key)
-	//	for _, k := range s.To.CollectionKeys {
-	//		if s.To.Key != k {
-	//			g.AppendOps(mongo.First(k, k))
-	//		}
-	//	}
-	//	q.AppendStages(g.Stage())
-	//	q.Lock()
-	//
-	//case r == M2O || (r == O2O && s.Edge.Inverse):
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.Edge.Keys[0]).
-	//		ForeignField(s.To.Key).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//
-	//	if r == M2O {
-	//		g := mongo.Group().ID(s.To.Key)
-	//		for _, k := range s.To.CollectionKeys {
-	//			if s.To.Key != k {
-	//				g.AppendOps(mongo.First(k, k))
-	//			}
-	//		}
-	//		q.AppendStages(g.Stage())
-	//	}
-	//	q.Lock()
-	//
-	//case r == O2M || (r == O2O && !s.Edge.Inverse):
-	//	asKey := s.Edge.Collection
-	//	lookup := mongo.Lookup().
-	//		From(s.To.Collection).
-	//		LocalField(s.From.Key).
-	//		ForeignField(s.Edge.Keys[0]).
-	//		As(asKey)
-	//
-	//	q.AppendStages(
-	//		lookup.Stage(),
-	//		mongo.Unwind().Path(asKey).PreserveNullAndEmptyArrays(false).Stage(),
-	//		mongo.ReplaceRoot().NewRoot(asKey).Stage(),
-	//	)
-	//	q.Lock()
-	//}
-	//return q
-	return nil
 }
 
 // QueryNodes queries the nodes in the graph query and scans them to the given values.
@@ -842,115 +725,103 @@ type updater struct {
 }
 
 func (u *updater) node(ctx context.Context, tx dialect.ExecQuerier) (err error) {
-	updateItemBuilder := u.Update(u.Node.Table)
-	if err = u.update(ctx, updateItemBuilder); err != nil {
-		return err
+	updateItemBuilder, batchWrite := u.Update(u.Node.Table), dynamodb.BatchWriteItem()
+	addEdges, clearEdges := EdgeSpecs(u.Edges.Add).GroupRel(), EdgeSpecs(u.Edges.Clear).GroupRel()
+	idValue, err := attributevalue.Marshal(u.Node.ID.Value)
+	if err != nil {
+		return fmt.Errorf("update node failed: %w", err)
+	}
+	updateItemBuilder.WithKey(u.Node.ID.Key, idValue)
+	if err = u.update(ctx, u.Node.ID.Value, addEdges, clearEdges, updateItemBuilder, batchWrite); err != nil {
+		return fmt.Errorf("update node failed: %w", err)
 	}
 	updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
 	if err != nil {
-		return err
+		return fmt.Errorf("update node failed: %w", err)
 	}
 	op, args := updateItemBuilder.Op()
 	var output sdk.UpdateItemOutput
-	err = u.tx.Exec(ctx, op, args, &output)
+	err = tx.Exec(ctx, op, args, &output)
 	if err != nil {
-		return err
+		return fmt.Errorf("update node failed: %w", err)
+	}
+	if !batchWrite.IsEmpty {
+		op, args := batchWrite.Op()
+		if err := tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
+			return fmt.Errorf("update node failed: %w", err)
+		}
 	}
 	return u.Assign(output.Attributes)
 }
 
-// update returns potential errors during process of marshaling UpdateSpec
-// to DynamoBD attributes and build steps in dynamodb.UpdateItemBuilder.
-func (u *updater) update(ctx context.Context, builder *dynamodb.UpdateItemBuilder) (err error) {
-	var (
-		// id holds the PK of the node used for linking
-		// it with the other nodes.
-		id         = u.Node.ID.Value
-		addEdges   = EdgeSpecs(u.Edges.Add).GroupRel()
-		clearEdges = EdgeSpecs(u.Edges.Clear).GroupRel()
-	)
-	keyVal, err := attributevalue.Marshal(id)
-	if err != nil {
-		return fmt.Errorf("key type not supported: %v has type %T", id, id)
-	}
-	builder.WithKey(u.Node.ID.Key, keyVal)
-	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, builder)
-	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, builder)
+func (u *updater) update(
+	ctx context.Context,
+	id interface{},
+	addEdges map[Rel][]*EdgeSpec,
+	clearEdges map[Rel][]*EdgeSpec,
+	updateBuilder *dynamodb.UpdateItemBuilder,
+	batchWrite *dynamodb.BatchWriteItemBuilder) (err error) {
+	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, updateBuilder)
+	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, updateBuilder)
 	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
 		return fmt.Errorf("update node failed: %w", err)
 	}
 	if err := u.graph.addFKEdges(ctx, []interface{}{id}, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
 		return fmt.Errorf("update node failed: %w", err)
 	}
-	batchWrite := dynamodb.BatchWriteItem()
 	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], batchWrite); err != nil {
 		return fmt.Errorf("update node failed: %w", err)
 	}
 	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M], batchWrite); err != nil {
 		return fmt.Errorf("update node failed: %w", err)
 	}
-	if batchWrite.IsEmpty {
-		return nil
-	}
-	op, args := batchWrite.Op()
-	if err := u.tx.Exec(ctx, op, args, &sdk.DeleteItemOutput{}); err != nil {
-		return fmt.Errorf("update node failed: %w", err)
-	}
 	return nil
 }
 
 func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error) {
-	//var (
-	//	ids        []interface{}
-	//	addEdges   = EdgeSpecs(u.Edges.Add).GroupRel()
-	//	clearEdges = EdgeSpecs(u.Edges.Clear).GroupRel()
-	//)
-	//selector := mongo.Select(u.Node.ID.Key).
-	//	From(u.Node.Collection)
-	//if pred := u.Predicate; pred != nil {
-	//	pred(selector)
-	//}
-	//
-	//var cur *mongo.Cursor
-	//op, args := selector.Op()
-	//if err := tx.BuildExpression(ctx, op, args, &cur); err != nil {
-	//	return 0, ferrs.Wrap(err)
-	//}
-	//
-	//for cur.Next(ctx) {
-	//	doc := make(bson.M)
-	//	if err := cur.Decode(&doc); err != nil {
-	//		return 0, ferrs.Wrap(err)
-	//	}
-	//
-	//	ids = append(ids, doc[u.Node.ID.Key])
-	//}
-	//if err := cur.Err(); err != nil {
-	//	return 0, ferrs.Wrap(err)
-	//}
-	//if err := cur.Close(ctx); err != nil {
-	//	return 0, ferrs.Wrap(err)
-	//}
-	//if len(ids) == 0 {
-	//	return 0, nil
-	//}
-	//
-	//bulkWrite := mongo.BulkWrite()
-	//update := mongo.Update(u.Node.Collection).Where(matchID(u.Node.ID.Key, ids))
-	//u.setDocumentFields(update)
-	//u.setAddEdges(ctx, ids, addEdges, update)
-	//if !update.IsEmpty() {
-	//	bulkWrite.Append(update)
-	//}
-	//
-	//u.setClearAttributesAndEdges(ctx, ids, clearEdges, bulkWrite)
-	//
-	//if err := u.setExternalEdges(ctx, ids, addEdges, clearEdges, bulkWrite); err != nil {
-	//	return 0, ferrs.Wrap(err)
-	//}
-	//
-	//return len(ids), nil
-	return 0, nil
+	selector := dynamodb.Select(u.Node.ID.Key).
+		From(u.Node.Table)
+	if pred := u.Predicate; pred != nil {
+		pred(selector)
+	}
+	op, args := selector.BuildExpressions().Op()
+	var scanOutput sdk.ScanOutput
+	if err := tx.Exec(ctx, op, args, &scanOutput); err != nil {
+		return 0, fmt.Errorf("update nodes failed: %w", err)
+	}
+	if len(scanOutput.Items) == 0 {
+		return 0, nil
+	}
+	batchWrite := dynamodb.BatchWriteItem()
+	for _, item := range scanOutput.Items {
+		addEdges, clearEdges := EdgeSpecs(u.Edges.Add).GroupRel(), EdgeSpecs(u.Edges.Clear).GroupRel()
+		updateItemBuilder := u.Update(u.Node.Table).WithKey(u.Node.ID.Key, item[u.Node.ID.Key])
+		var id interface{}
+		err := attributevalue.Unmarshal(item[u.Node.ID.Key], &id)
+		if err != nil {
+			return 0, fmt.Errorf("update nodes failed: %w", err)
+		}
+		if err := u.update(ctx, id, addEdges, clearEdges, updateItemBuilder, batchWrite); err != nil {
+			return 0, fmt.Errorf("update nodes failed: %w", err)
+		}
+		updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
+		if err != nil {
+			return 0, fmt.Errorf("update nodes failed: %w", err)
+		}
+		op, args := updateItemBuilder.Op()
+		err = tx.Exec(ctx, op, args, &sdk.UpdateItemOutput{})
+		if err != nil {
+			return 0, fmt.Errorf("update nodes failed: %w", err)
+		}
+	}
+	if batchWrite.IsEmpty {
+		return 0, nil
+	}
+	op, args = batchWrite.Op()
+	if err := u.tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
+		return 0, fmt.Errorf("update nodes failed: %w", err)
+	}
+	return len(scanOutput.Items), nil
 }
 
 func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldSpec, addEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
@@ -1011,7 +882,6 @@ func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int
 	if pred := spec.Predicate; pred != nil {
 		pred(selector)
 	}
-	selector = selector.BuildExpressions()
 	if id != nil {
 		return dl.deleteNode(ctx, id, selector, batchWrite)
 	}
@@ -1040,7 +910,7 @@ func (dl *deleter) deleteNode(ctx context.Context, id interface{}, selector *dyn
 }
 
 func (dl *deleter) deleteNodes(ctx context.Context, selector *dynamodb.Selector, batchWrite *dynamodb.BatchWriteItemBuilder) (int, error) {
-	op, args := dl.Select().From(dl.DeleteSpec.Node.Table).Where(selector.P()).Op()
+	op, args := dl.Select().From(dl.DeleteSpec.Node.Table).Where(selector.P()).BuildExpressions().Op()
 	var scanOutput sdk.ScanOutput
 	if err := dl.tx.Exec(ctx, op, args, &scanOutput); err != nil {
 		return 0, fmt.Errorf("delete nodes failed: %w", err)

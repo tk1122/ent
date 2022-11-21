@@ -253,3 +253,64 @@ func (bc *BlobCreate) createSpec() (*Blob, *dynamodbgraph.CreateSpec) {
 	}
 	return _node, _spec
 }
+
+// BlobCreateBulk is the builder for creating many Blob entities in bulk.
+type BlobCreateBulk struct {
+	config
+	builders []*BlobCreate
+}
+
+// Save creates the Blob entities in the database.
+func (bcb *BlobCreateBulk) Save(ctx context.Context) ([]*Blob, error) {
+	specs := make([]*dynamodbgraph.CreateSpec, len(bcb.builders))
+	nodes := make([]*Blob, len(bcb.builders))
+	mutators := make([]Mutator, len(bcb.builders))
+	for i := range bcb.builders {
+		func(i int, root context.Context) {
+			builder := bcb.builders[i]
+			builder.defaults()
+			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
+				mutation, ok := m.(*BlobMutation)
+				if !ok {
+					return nil, fmt.Errorf("unexpected mutation type %T", m)
+				}
+				if err := builder.check(); err != nil {
+					return nil, err
+				}
+				builder.mutation = mutation
+				nodes[i], specs[i] = builder.createSpec()
+				var err error
+				if i < len(mutators)-1 {
+					_, err = mutators[i+1].Mutate(root, bcb.builders[i+1].mutation)
+				} else {
+					// Invoke the actual operation on the latest mutation in the chain.
+					err = dynamodbgraph.BatchCreate(ctx, bcb.driver, &dynamodbgraph.BatchCreateSpec{Nodes: specs})
+				}
+				mutation.done = true
+				if err != nil {
+					return nil, err
+				}
+				return nodes[i], nil
+			})
+			for i := len(builder.hooks) - 1; i >= 0; i-- {
+				mut = builder.hooks[i](mut)
+			}
+			mutators[i] = mut
+		}(i, ctx)
+	}
+	if len(mutators) > 0 {
+		if _, err := mutators[0].Mutate(ctx, bcb.builders[0].mutation); err != nil {
+			return nil, err
+		}
+	}
+	return nodes, nil
+}
+
+// SaveX calls Save and panics if Save returns an error.
+func (bcb *BlobCreateBulk) SaveX(ctx context.Context) []*Blob {
+	v, err := bcb.Save(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}

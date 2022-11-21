@@ -8,7 +8,6 @@ package user
 
 import (
 	"entgo.io/ent/dialect/dynamodb"
-	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 	"entgo.io/ent/examples/dynamodb/o2o2types/ent/predicate"
 )
 
@@ -239,56 +238,29 @@ func NameHasPrefix(v string) predicate.User {
 	})
 }
 
-// HasCard applies the HasEdge predicate on the "card" edge.
-func HasCard() predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(CardTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, CardTable, CardAttribute),
-		)
-		dynamodbgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasCardWith applies the HasEdge predicate on the "card" edge with a given conditions (other predicates).
-func HasCardWith(preds ...predicate.Card) predicate.User {
-	return predicate.User(func(s *dynamodb.Selector) {
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(Table, FieldID),
-			dynamodbgraph.To(CardInverseTable, FieldID, []string{}),
-			dynamodbgraph.Edge(dynamodbgraph.O2O, false, false, CardTable, CardAttribute),
-		)
-		dynamodbgraph.HasNeighborsWith(s, step, func(s *dynamodb.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.User) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s1 := s.Clone()
+		var ps []*dynamodb.Predicate
 		for _, p := range predicates {
-			p(s1)
+			selector := dynamodb.Select()
+			p(selector)
+			ps = append(ps, selector.P())
 		}
-		s.Where(s1.P())
+		s.Where(dynamodb.And(ps...))
 	})
 }
 
 // Or groups predicates with the OR operator between them.
 func Or(predicates ...predicate.User) predicate.User {
 	return predicate.User(func(s *dynamodb.Selector) {
-		s1 := s.Clone()
-		for i, p := range predicates {
-			if i > 0 {
-				s1.Or()
-			}
-			p(s1)
+		var ps []*dynamodb.Predicate
+		for _, p := range predicates {
+			selector := dynamodb.Select()
+			p(selector)
+			ps = append(ps, selector.P())
 		}
-		s.Where(s1.P())
+		s.Where(dynamodb.Or(ps...))
 	})
 }
 

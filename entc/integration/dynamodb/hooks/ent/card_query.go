@@ -25,7 +25,6 @@ type CardQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Card
 	withOwner  *UserQuery
@@ -58,31 +57,6 @@ func (cq *CardQuery) Offset(offset int) *CardQuery {
 func (cq *CardQuery) Unique(unique bool) *CardQuery {
 	cq.unique = &unique
 	return cq
-}
-
-// Order adds an order step to the query.
-func (cq *CardQuery) Order(o ...OrderFunc) *CardQuery {
-	cq.order = append(cq.order, o...)
-	return cq
-}
-
-// QueryOwner chains the current query on the "owner" edge.
-func (cq *CardQuery) QueryOwner() *UserQuery {
-	query := &UserQuery{config: cq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := cq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := cq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(card.Table, card.FieldID, selector),
-			dynamodbgraph.To(user.Table, user.FieldID, user.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, card.OwnerTable, card.OwnerAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first Card entity from the query.
@@ -264,7 +238,6 @@ func (cq *CardQuery) Clone() *CardQuery {
 		config:     cq.config,
 		limit:      cq.limit,
 		offset:     cq.offset,
-		order:      append([]OrderFunc{}, cq.order...),
 		predicates: append([]predicate.Card{}, cq.predicates...),
 		withOwner:  cq.withOwner.Clone(),
 		// clone intermediate query.
@@ -425,13 +398,6 @@ func (cq *CardQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := cq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := cq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }

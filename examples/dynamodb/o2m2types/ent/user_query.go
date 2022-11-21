@@ -12,7 +12,6 @@ import (
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
-	"entgo.io/ent/examples/dynamodb/o2m2types/ent/pet"
 	"entgo.io/ent/examples/dynamodb/o2m2types/ent/predicate"
 	"entgo.io/ent/examples/dynamodb/o2m2types/ent/user"
 	"entgo.io/ent/schema/field"
@@ -25,7 +24,6 @@ type UserQuery struct {
 	limit      *int
 	offset     *int
 	unique     *bool
-	order      []OrderFunc
 	fields     []string
 	predicates []predicate.User
 	withPets   *PetQuery
@@ -57,31 +55,6 @@ func (uq *UserQuery) Offset(offset int) *UserQuery {
 func (uq *UserQuery) Unique(unique bool) *UserQuery {
 	uq.unique = &unique
 	return uq
-}
-
-// Order adds an order step to the query.
-func (uq *UserQuery) Order(o ...OrderFunc) *UserQuery {
-	uq.order = append(uq.order, o...)
-	return uq
-}
-
-// QueryPets chains the current query on the "pets" edge.
-func (uq *UserQuery) QueryPets() *PetQuery {
-	query := &PetQuery{config: uq.config}
-	query.path = func(ctx context.Context) (fromU *dynamodb.Selector, err error) {
-		if err := uq.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := uq.dynamodbQuery(ctx)
-		step := dynamodbgraph.NewStep(
-			dynamodbgraph.From(user.Table, user.FieldID, selector),
-			dynamodbgraph.To(pet.Table, pet.FieldID, pet.Keys),
-			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, user.PetsTable, user.PetsAttribute),
-		)
-		fromU = dynamodbgraph.SetNeighbors(step)
-		return fromU, nil
-	}
-	return query
 }
 
 // First returns the first User entity from the query.
@@ -263,7 +236,6 @@ func (uq *UserQuery) Clone() *UserQuery {
 		config:     uq.config,
 		limit:      uq.limit,
 		offset:     uq.offset,
-		order:      append([]OrderFunc{}, uq.order...),
 		predicates: append([]predicate.User{}, uq.predicates...),
 		withPets:   uq.withPets.Clone(),
 		// clone intermediate query.
@@ -417,13 +389,6 @@ func (uq *UserQuery) querySpec() *dynamodbgraph.QuerySpec {
 	}
 	if offset := uq.offset; offset != nil {
 		_spec.Offset = *offset
-	}
-	if ps := uq.order; len(ps) > 0 {
-		_spec.Order = func(selector *dynamodb.Selector) {
-			for i := range ps {
-				ps[i](selector)
-			}
-		}
 	}
 	return _spec
 }
