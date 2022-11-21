@@ -107,33 +107,39 @@ func (c Client) createTable(ctx context.Context, args, v interface{}) (err error
 	if err != nil {
 		var inUseEx *types.ResourceInUseException
 		if !errors.As(err, &inUseEx) {
-			return err
+			return fmt.Errorf("DynamoDB CreateTable operation: %v", err)
 		}
 	}
 	waiter := dynamodb.NewTableExistsWaiter(c)
 	err = waiter.Wait(ctx, &dynamodb.DescribeTableInput{
 		TableName: createTableArgs.TableName,
 	}, 30*time.Second)
+	if err != nil {
+		return fmt.Errorf("DynamoDB CreateTable operation: %v", err)
+	}
 	*output = *res
-	return err
+	return nil
 }
 
 func (c Client) putItem(ctx context.Context, args, v interface{}) (err error) {
 	output := v.(*dynamodb.PutItemOutput)
 	putItemArgs := args.(*dynamodb.PutItemInput)
 	res, err := c.PutItem(ctx, putItemArgs)
+	if err != nil {
+		return fmt.Errorf("DynamoDB PutItem operation: %v", err)
+	}
 	*output = *res
-	return err
+	return nil
 }
 
 func (c Client) updateItem(ctx context.Context, args, v interface{}) (err error) {
 	output := v.(*dynamodb.UpdateItemOutput)
 	input := args.(*dynamodb.UpdateItemInput)
-	updateOutput, err := c.UpdateItem(ctx, input)
+	res, err := c.UpdateItem(ctx, input)
 	if err != nil {
-		return err
+		return fmt.Errorf("DynamoDB UpdateItem operation: %v", err)
 	}
-	*output = *updateOutput
+	*output = *res
 	return nil
 }
 
@@ -160,7 +166,10 @@ func (c Client) batchWrite(ctx context.Context, args, v interface{}) (err error)
 	_, err = c.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 		RequestItems: requestItems,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("DynamoDB BatchWriteItem operation: %v", err)
+	}
+	return nil
 }
 
 func (c Client) scan(ctx context.Context, args, v interface{}) (err error) {
@@ -168,7 +177,7 @@ func (c Client) scan(ctx context.Context, args, v interface{}) (err error) {
 	input := args.(*dynamodb.ScanInput)
 	scanOutput, err := c.Scan(ctx, input)
 	if err != nil {
-		return err
+		return fmt.Errorf("DynamoDB Scan operation: %v", err)
 	}
 	*output = *scanOutput
 	return nil
@@ -179,7 +188,7 @@ func (c Client) deleteItem(ctx context.Context, args, v interface{}) (err error)
 	input := args.(*dynamodb.DeleteItemInput)
 	deleteOutput, err := c.DeleteItem(ctx, input)
 	if err != nil {
-		return err
+		return fmt.Errorf("DynamoDB DeleteItem operation: %v", err)
 	}
 	*output = *deleteOutput
 	return nil

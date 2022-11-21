@@ -114,7 +114,7 @@ type (
 func CreateNode(ctx context.Context, drv dialect.Driver, spec *CreateSpec) (err error) {
 	tx, err := drv.Tx(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("dynamodbgraph: create node: %v", err)
 	}
 	gr := graph{tx: tx, RootBuilder: dynamodb.RootBuilder{}}
 	cr := &creator{
@@ -122,6 +122,7 @@ func CreateNode(ctx context.Context, drv dialect.Driver, spec *CreateSpec) (err 
 		graph:      gr,
 	}
 	if err = cr.node(ctx); err != nil {
+		err = fmt.Errorf("dynamodbgraph: create node: %v", err)
 		return rollback(tx, err)
 	}
 	return tx.Commit()
@@ -131,11 +132,12 @@ func CreateNode(ctx context.Context, drv dialect.Driver, spec *CreateSpec) (err 
 func BatchCreate(ctx context.Context, drv dialect.Driver, spec *BatchCreateSpec) error {
 	tx, err := drv.Tx(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("dynamodbgraph: batch create nodes: %v", err)
 	}
 	gr := graph{tx: tx}
 	cr := &creator{BatchCreateSpec: spec, graph: gr}
 	if err := cr.nodes(ctx, tx); err != nil {
+		err = fmt.Errorf("dynamodbgraph: batch create nodes: %v", err)
 		return rollback(tx, err)
 	}
 	return tx.Commit()
@@ -151,19 +153,16 @@ func (c *creator) node(ctx context.Context) (err error) {
 		fields = append(fields, c.CreateSpec.ID)
 	}
 	if err = c.insert(ctx, c.CreateSpec.Table, batchWrite, fields, edges, itemData); err != nil {
-		return err
+		return fmt.Errorf("insert owned attributes and edges: %v", err)
 	}
 	if err = c.graph.addFKEdges(ctx, []interface{}{c.ID.Value}, append(edges[O2M], edges[O2O]...)); err != nil {
-		return err
+		return fmt.Errorf("add FK edges: %v", err)
 	}
 	if err = c.graph.addM2MEdges(ctx, []interface{}{c.ID.Value}, edges[M2M], batchWrite); err != nil {
-		return err
+		return fmt.Errorf("add M2M edges: %v", err)
 	}
 	op, input := batchWrite.Op()
-	if err := c.tx.Exec(ctx, op, input, &sdk.BatchWriteItemOutput{}); err != nil {
-		return fmt.Errorf("create node failed: %w", err)
-	}
-	return nil
+	return c.tx.Exec(ctx, op, input, &sdk.BatchWriteItemOutput{})
 }
 
 func (c *creator) nodes(ctx context.Context, tx dialect.ExecQuerier) error {
@@ -190,19 +189,15 @@ func (c *creator) nodes(ctx context.Context, tx dialect.ExecQuerier) error {
 	for _, node := range c.Nodes {
 		edges := EdgeSpecs(node.Edges).GroupRel()
 		if err := c.graph.addM2MEdges(ctx, []interface{}{node.ID.Value}, edges[M2M], batchWrite); err != nil {
-			return err
+			return fmt.Errorf("add M2M edges: %v", err)
 		}
 		if err := c.graph.addFKEdges(ctx, []interface{}{node.ID.Value}, append(edges[O2M], edges[O2O]...)); err != nil {
-			return err
+			return fmt.Errorf("add FK edges: %v", err)
 		}
 	}
 
 	op, args := batchWrite.Op()
-	if err := tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
-		return fmt.Errorf("create nodes failed: %w", err)
-	}
-
-	return nil
+	return tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{})
 }
 
 // insert put an item with all attributes it owns to the table,
@@ -226,18 +221,18 @@ func (c *creator) insert(
 func (c *creator) setItemAttributes(fields []*FieldSpec, edges map[Rel][]*EdgeSpec, itemData map[string]types.AttributeValue) (err error) {
 	for _, f := range fields {
 		if itemData[f.Key], err = attributevalue.Marshal(f.Value); err != nil {
-			return err
+			return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", f.Value, err)
 		}
 	}
 	for _, e := range edges[M2O] {
 		if itemData[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
-			return err
+			return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", e.Target.Nodes[0], err)
 		}
 	}
 	for _, e := range edges[O2O] {
 		if e.Inverse || e.Bidi {
 			if itemData[e.Attributes[0]], err = attributevalue.Marshal(e.Target.Nodes[0]); err != nil {
-				return err
+				return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", e.Target.Nodes[0], err)
 			}
 		}
 	}
@@ -326,19 +321,19 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 			for _, toId := range toIds {
 				item := make(map[string]types.AttributeValue)
 				if item[toAttr], err = attributevalue.Marshal(toId); err != nil {
-					return fmt.Errorf("add m2m edge: %w", err)
+					return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", toId, err)
 				}
 				if item[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
-					return fmt.Errorf("add m2m edge: %w", err)
+					return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", fromId, err)
 				}
 				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(item))
 				if e.Bidi {
 					reverseItem := make(map[string]types.AttributeValue)
 					if reverseItem[toAttr], err = attributevalue.Marshal(fromId); err != nil {
-						return fmt.Errorf("add m2m edge: %w", err)
+						return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", fromId, err)
 					}
 					if reverseItem[fromAttr], err = attributevalue.Marshal(toId); err != nil {
-						return fmt.Errorf("add m2m edge: %w", err)
+						return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", toId, err)
 					}
 					batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
 				}
@@ -505,7 +500,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 		op, args := joinTableQuery.Op()
 		var output sdk.ScanOutput
 		if err := drv.Query(ctx, op, args, &output); err != nil {
-			q.AddError(err)
+			q.AddError(fmt.Errorf("query neighbors: %v", err))
 			return q
 		}
 		var ids []interface{}
@@ -524,7 +519,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 		op, args := joinTableQuery.Op()
 		var output sdk.ScanOutput
 		if err := drv.Query(ctx, op, args, &output); err != nil {
-			q.AddError(err)
+			q.AddError(fmt.Errorf("query neighbors: %v", err))
 			return q
 		}
 		var ids []interface{}
@@ -543,7 +538,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 		op, args := joinTableQuery.Op()
 		var output sdk.ScanOutput
 		if err := drv.Query(ctx, op, args, &output); err != nil {
-			q.AddError(err)
+			q.AddError(fmt.Errorf("query neighbors: %v", err))
 			return q
 		}
 		var ids []interface{}
@@ -564,7 +559,7 @@ func Neighbors(s *Step, drv dialect.Driver) (q *dynamodb.Selector) {
 		op, args := iq.Op()
 		var output sdk.ScanOutput
 		if err := drv.Query(ctx, op, args, &output); err != nil {
-			q.AddError(err)
+			q.AddError(fmt.Errorf("query neighbors: %v", err))
 			return q
 		}
 		q.Where(dynamodb.EQ(s.To.Attribute, output.Items[0][s.Edge.Attributes[0]]))
@@ -596,7 +591,6 @@ type QuerySpec struct {
 
 	Limit     int
 	Offset    int
-	Order     func(*dynamodb.Selector)
 	Predicate func(*dynamodb.Selector)
 
 	Item   func() interface{}
@@ -624,9 +618,6 @@ func (q *query) selector() (*dynamodb.Selector, error) {
 	if pred := q.Predicate; pred != nil {
 		pred(selector)
 	}
-	if order := q.Order; order != nil {
-		order(selector)
-	}
 	selector.BuildExpressions()
 	return selector, selector.Err()
 }
@@ -640,12 +631,12 @@ func CountNodes(ctx context.Context, drv dialect.Driver, spec *QuerySpec) (int, 
 func (q *query) count(ctx context.Context, drv dialect.Driver) (int, error) {
 	selector, err := q.selector()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("dynamodbgraph: count nodes: %v", err)
 	}
 	op, args := selector.Op()
 	var output sdk.ScanOutput
 	if err := drv.Query(ctx, op, args, &output); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("dynamodbgraph: count nodes: %v", err)
 	}
 	return int(output.Count), nil
 }
@@ -681,11 +672,12 @@ type (
 func UpdateNode(ctx context.Context, drv dialect.Driver, spec *UpdateSpec) error {
 	tx, err := drv.Tx(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("dynamodbgraph: update node: %v", err)
 	}
 	gr := graph{tx: tx}
 	cr := &updater{UpdateSpec: spec, graph: gr}
 	if err := cr.node(ctx, tx); err != nil {
+		err = fmt.Errorf("dynamodbgraph: update node: %v", err)
 		return rollback(tx, err)
 	}
 	return tx.Commit()
@@ -695,12 +687,13 @@ func UpdateNode(ctx context.Context, drv dialect.Driver, spec *UpdateSpec) error
 func UpdateNodes(ctx context.Context, drv dialect.Driver, spec *UpdateSpec) (int, error) {
 	tx, err := drv.Tx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("dynamodbgraph: update nodes: %v", err)
 	}
 	gr := graph{tx: tx}
 	cr := &updater{UpdateSpec: spec, graph: gr}
 	affected, err := cr.nodes(ctx, tx)
 	if err != nil {
+		err = fmt.Errorf("dynamodbgraph: update nodes: %v", err)
 		return 0, rollback(tx, err)
 	}
 	return affected, tx.Commit()
@@ -727,26 +720,26 @@ func (u *updater) node(ctx context.Context, tx dialect.ExecQuerier) (err error) 
 	addEdges, clearEdges := EdgeSpecs(u.Edges.Add).GroupRel(), EdgeSpecs(u.Edges.Clear).GroupRel()
 	idValue, err := attributevalue.Marshal(u.Node.ID.Value)
 	if err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return err
 	}
 	updateItemBuilder.WithKey(u.Node.ID.Key, idValue)
 	if err = u.update(ctx, u.Node.ID.Value, addEdges, clearEdges, updateItemBuilder, batchWrite); err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return err
 	}
 	updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
 	if err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return err
 	}
 	op, args := updateItemBuilder.Op()
 	var output sdk.UpdateItemOutput
 	err = tx.Exec(ctx, op, args, &output)
 	if err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return err
 	}
 	if !batchWrite.IsEmpty {
 		op, args := batchWrite.Op()
 		if err := tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
-			return fmt.Errorf("update node failed: %w", err)
+			return err
 		}
 	}
 	return u.Assign(output.Attributes)
@@ -762,16 +755,16 @@ func (u *updater) update(
 	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, updateBuilder)
 	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, updateBuilder)
 	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return fmt.Errorf("clear FK edges: %w", err)
 	}
 	if err := u.graph.addFKEdges(ctx, []interface{}{id}, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return fmt.Errorf("add FK edges: %w", err)
 	}
 	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], batchWrite); err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return fmt.Errorf("clear M2M edges: %w", err)
 	}
 	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M], batchWrite); err != nil {
-		return fmt.Errorf("update node failed: %w", err)
+		return fmt.Errorf("add M2M edges: %w", err)
 	}
 	return nil
 }
@@ -785,7 +778,7 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 	op, args := selector.BuildExpressions().Op()
 	var scanOutput sdk.ScanOutput
 	if err := tx.Exec(ctx, op, args, &scanOutput); err != nil {
-		return 0, fmt.Errorf("update nodes failed: %w", err)
+		return 0, err
 	}
 	if len(scanOutput.Items) == 0 {
 		return 0, nil
@@ -797,19 +790,19 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 		var id interface{}
 		err := attributevalue.Unmarshal(item[u.Node.ID.Key], &id)
 		if err != nil {
-			return 0, fmt.Errorf("update nodes failed: %w", err)
+			return 0, fmt.Errorf("unmarshal %v: %w", item[u.Node.ID.Key], err)
 		}
 		if err := u.update(ctx, id, addEdges, clearEdges, updateItemBuilder, batchWrite); err != nil {
-			return 0, fmt.Errorf("update nodes failed: %w", err)
+			return 0, err
 		}
 		updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
 		if err != nil {
-			return 0, fmt.Errorf("update nodes failed: %w", err)
+			return 0, fmt.Errorf("update builder expression build: %w", err)
 		}
 		op, args := updateItemBuilder.Op()
 		err = tx.Exec(ctx, op, args, &sdk.UpdateItemOutput{})
 		if err != nil {
-			return 0, fmt.Errorf("update nodes failed: %w", err)
+			return 0, err
 		}
 	}
 	if batchWrite.IsEmpty {
@@ -817,7 +810,7 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 	}
 	op, args = batchWrite.Op()
 	if err := u.tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
-		return 0, fmt.Errorf("update nodes failed: %w", err)
+		return 0, err
 	}
 	return len(scanOutput.Items), nil
 }
@@ -872,7 +865,7 @@ func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int
 		DeleteSpec: spec,
 	}
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("dynamodbgraph: delete nodes: %v", err)
 	}
 	id := spec.Node.ID.Value
 	batchWrite := dynamodb.BatchWriteItem()
@@ -889,20 +882,20 @@ func DeleteNodes(ctx context.Context, drv dialect.Driver, spec *DeleteSpec) (int
 func (dl *deleter) deleteNode(ctx context.Context, id interface{}, selector *dynamodb.Selector, batchWrite *dynamodb.BatchWriteItemBuilder) (int, error) {
 	keyVal, err := attributevalue.Marshal(id)
 	if err != nil {
-		return 0, fmt.Errorf("delete node failed: %w", err)
+		return 0, err
 	}
 	deleteItem := dl.DeleteItem(dl.DeleteSpec.Node.Table).Where(selector.P()).WithKey(dl.DeleteSpec.Node.ID.Key, keyVal)
 	batchWrite.Append(dl.DeleteSpec.Node.Table, deleteItem)
 	clearEdges := EdgeSpecs(dl.DeleteSpec.ClearEdges).GroupRel()
 	if err := dl.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], batchWrite); err != nil {
-		return 0, fmt.Errorf("delete node failed: %w", err)
+		return 0, fmt.Errorf("clear M2M edges: %w", err)
 	}
 	if batchWrite.IsEmpty {
-		return 0, fmt.Errorf("delete node failed: %w", err)
+		return 0, nil
 	}
 	op, args := batchWrite.Op()
 	if err := dl.tx.Exec(ctx, op, args, &sdk.DeleteItemOutput{}); err != nil {
-		return 0, fmt.Errorf("delete node failed: %w", err)
+		return 0, err
 	}
 	return 1, nil
 }
@@ -911,7 +904,7 @@ func (dl *deleter) deleteNodes(ctx context.Context, selector *dynamodb.Selector,
 	op, args := dl.Select().From(dl.DeleteSpec.Node.Table).Where(selector.P()).BuildExpressions().Op()
 	var scanOutput sdk.ScanOutput
 	if err := dl.tx.Exec(ctx, op, args, &scanOutput); err != nil {
-		return 0, fmt.Errorf("delete nodes failed: %w", err)
+		return 0, err
 	}
 	if len(scanOutput.Items) == 0 {
 		return 0, nil
@@ -925,7 +918,7 @@ func (dl *deleter) deleteNodes(ctx context.Context, selector *dynamodb.Selector,
 	}
 	op, args = batchWrite.Op()
 	if err := dl.tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
-		return 0, fmt.Errorf("delete nodes failed: %w", err)
+		return 0, err
 	}
 	return len(scanOutput.Items), nil
 }
