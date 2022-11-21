@@ -117,7 +117,16 @@ func ({{ $receiver }} *{{ $builder }}) querySpec() *dynamodbgraph.QuerySpec {
 }
 
 func ({{ $receiver }} *{{ $builder }}) dynamodbQuery(ctx context.Context) *dynamodb.Selector {
-	return nil
+	c1 := {{ $.Package }}.Table
+	selector := dynamodb.Select({{ $.Package }}.Keys...).From(c1)
+	if {{ $receiver }}.dynamodb != nil {
+		selector = {{ $receiver }}.dynamodb
+		selector.Select({{ $.Package }}.Keys...)
+	}
+	for _, p := range {{ $receiver }}.predicates {
+		p(selector)
+	}
+	return selector
 }
 {{ end }}
 
