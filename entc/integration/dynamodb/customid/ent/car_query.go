@@ -9,6 +9,7 @@ package ent
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
@@ -403,7 +404,16 @@ func (cq *CarQuery) querySpec() *dynamodbgraph.QuerySpec {
 }
 
 func (cq *CarQuery) dynamodbQuery(ctx context.Context) *dynamodb.Selector {
-	return nil
+	c1 := car.Table
+	selector := dynamodb.Select(car.Keys...).From(c1)
+	if cq.dynamodb != nil {
+		selector = cq.dynamodb
+		selector.Select(car.Keys...)
+	}
+	for _, p := range cq.predicates {
+		p(selector)
+	}
+	return selector
 }
 
 // CarSelect is the builder for selecting fields of Car entities.
@@ -423,9 +433,58 @@ func (cs *CarSelect) Scan(ctx context.Context, v any) error {
 }
 
 func (cs *CarSelect) dynamodbScan(ctx context.Context, v interface{}) error {
+	selector := cs.dynamodbQuery()
+	op, args := selector.BuildExpressions().Op()
+	var scanOutput sdk.ScanOutput
+	if err := cs.driver.Exec(ctx, op, args, &scanOutput); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+	key := cs.fields[0]
+	switch vv := v.(type) {
+	case *[]string:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberS); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	case *[]int:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.Atoi(v.Value)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]float64:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.ParseFloat(v.Value, 64)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]bool:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberBOOL); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	}
 	return nil
 }
 
 func (cs *CarSelect) dynamodbQuery() *dynamodb.Selector {
-	return nil
+	selector := cs.dynamodb
+	selector.Select(cs.fields...)
+	return selector
 }

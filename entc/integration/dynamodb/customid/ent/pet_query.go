@@ -9,6 +9,7 @@ package ent
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"entgo.io/ent/dialect/dynamodb"
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
@@ -523,7 +524,16 @@ func (pq *PetQuery) querySpec() *dynamodbgraph.QuerySpec {
 }
 
 func (pq *PetQuery) dynamodbQuery(ctx context.Context) *dynamodb.Selector {
-	return nil
+	c1 := pet.Table
+	selector := dynamodb.Select(pet.Keys...).From(c1)
+	if pq.dynamodb != nil {
+		selector = pq.dynamodb
+		selector.Select(pet.Keys...)
+	}
+	for _, p := range pq.predicates {
+		p(selector)
+	}
+	return selector
 }
 
 // PetSelect is the builder for selecting fields of Pet entities.
@@ -543,9 +553,58 @@ func (ps *PetSelect) Scan(ctx context.Context, v any) error {
 }
 
 func (ps *PetSelect) dynamodbScan(ctx context.Context, v interface{}) error {
+	selector := ps.dynamodbQuery()
+	op, args := selector.BuildExpressions().Op()
+	var scanOutput sdk.ScanOutput
+	if err := ps.driver.Exec(ctx, op, args, &scanOutput); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+	key := ps.fields[0]
+	switch vv := v.(type) {
+	case *[]string:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberS); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	case *[]int:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.Atoi(v.Value)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]float64:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberN); ok {
+					num, err := strconv.ParseFloat(v.Value, 64)
+					if err == nil {
+						*vv = append(*vv, num)
+					}
+				}
+			}
+		}
+	case *[]bool:
+		for _, item := range scanOutput.Items {
+			if i, ok := item[key]; ok {
+				if v, ok := i.(*types.AttributeValueMemberBOOL); ok {
+					*vv = append(*vv, v.Value)
+				}
+			}
+		}
+	}
 	return nil
 }
 
 func (ps *PetSelect) dynamodbQuery() *dynamodb.Selector {
-	return nil
+	selector := ps.dynamodb
+	selector.Select(ps.fields...)
+	return selector
 }
