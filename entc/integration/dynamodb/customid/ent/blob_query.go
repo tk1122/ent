@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/blob"
 	"entgo.io/ent/entc/integration/dynamodb/customid/ent/predicate"
 	"entgo.io/ent/schema/field"
+	sdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	uuid "github.com/satori/go.uuid"
 )
