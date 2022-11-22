@@ -117,7 +117,10 @@ func (c Client) createTable(ctx context.Context, args, v interface{}) (err error
 	if err != nil {
 		return fmt.Errorf("DynamoDB CreateTable operation: %v", err)
 	}
-	*output = *res
+	// in case err is a ResourceInUseException
+	if res != nil {
+		*output = *res
+	}
 	return nil
 }
 
@@ -175,11 +178,23 @@ func (c Client) batchWrite(ctx context.Context, args, v interface{}) (err error)
 func (c Client) scan(ctx context.Context, args, v interface{}) (err error) {
 	output := v.(*dynamodb.ScanOutput)
 	input := args.(*dynamodb.ScanInput)
+	accummulatedScanOutput := dynamodb.ScanOutput{}
 	scanOutput, err := c.Scan(ctx, input)
 	if err != nil {
 		return fmt.Errorf("DynamoDB Scan operation: %v", err)
 	}
-	*output = *scanOutput
+	accummulatedScanOutput.Count += scanOutput.Count
+	accummulatedScanOutput.Items = append(accummulatedScanOutput.Items, scanOutput.Items...)
+	for len(scanOutput.LastEvaluatedKey) != 0 {
+		input.ExclusiveStartKey = scanOutput.LastEvaluatedKey
+		scanOutput, err = c.Scan(ctx, input)
+		if err != nil {
+			return fmt.Errorf("DynamoDB Scan operation: %v", err)
+		}
+		accummulatedScanOutput.Count += scanOutput.Count
+		accummulatedScanOutput.Items = append(accummulatedScanOutput.Items, scanOutput.Items...)
+	}
+	*output = accummulatedScanOutput
 	return nil
 }
 
