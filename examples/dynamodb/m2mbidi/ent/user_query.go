@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/examples/dynamodb/m2mbidi/ent/predicate"
 	"entgo.io/ent/examples/dynamodb/m2mbidi/ent/user"
 	"entgo.io/ent/schema/field"
+	sdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 

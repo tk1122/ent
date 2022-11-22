@@ -2,7 +2,9 @@ package schema
 
 import (
 	"context"
+	"fmt"
 
+	sdk "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"entgo.io/ent/dialect"
@@ -43,8 +45,8 @@ func (a *Atlas) Create(ctx context.Context, tables ...*Table) (err error) {
 		// ProvisionedThroughput is required. Use hardcoded values for now.
 		ct.SetProvisionedThroughput(1, 1)
 		op, args := ct.Op()
-		if err := a.driver.Exec(ctx, op, args, nil); err != nil {
-			return err
+		if err := a.driver.Exec(ctx, op, args, &sdk.CreateTableOutput{}); err != nil {
+			return fmt.Errorf("create table: %v", err)
 		}
 	}
 	return nil
