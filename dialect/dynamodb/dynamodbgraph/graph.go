@@ -306,7 +306,7 @@ func (g *graph) clearFKEdges(ctx context.Context, ids []interface{}, edges []*Ed
 	return nil
 }
 
-func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec, batchWrite *dynamodb.BatchWriteItemBuilder) (err error) {
+func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec, multiOps dynamodb.AppendOper) (err error) {
 	if len(edges) == 0 {
 		return nil
 	}
@@ -326,7 +326,7 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 				if item[fromAttr], err = attributevalue.Marshal(fromId); err != nil {
 					return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", fromId, err)
 				}
-				batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(item))
+				multiOps.Append(m2mTable, g.PutItem(m2mTable).SetItem(item))
 				if e.Bidi {
 					reverseItem := make(map[string]types.AttributeValue)
 					if reverseItem[toAttr], err = attributevalue.Marshal(fromId); err != nil {
@@ -335,7 +335,7 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 					if reverseItem[fromAttr], err = attributevalue.Marshal(toId); err != nil {
 						return fmt.Errorf("DynamoDB AttributeValue marshal %v: %v", toId, err)
 					}
-					batchWrite.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
+					multiOps.Append(m2mTable, g.PutItem(m2mTable).SetItem(reverseItem))
 				}
 			}
 		}
@@ -343,7 +343,7 @@ func (g *graph) addM2MEdges(ctx context.Context, ids []interface{}, edges []*Edg
 	return nil
 }
 
-func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec, batchWrite *dynamodb.BatchWriteItemBuilder) (err error) {
+func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*EdgeSpec, multiOps dynamodb.AppendOper) (err error) {
 	if len(edges) == 0 {
 		return nil
 	}
@@ -367,7 +367,7 @@ func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*E
 			return fmt.Errorf("remove %s edge for table %s: %w", e.Rel, e.Table, err)
 		}
 		for _, item := range output.Items {
-			batchWrite.Append(m2mTable, g.DeleteItem(m2mTable).
+			multiOps.Append(m2mTable, g.DeleteItem(m2mTable).
 				WithKey(partitionKey, item[partitionKey]).
 				WithKey(sortKey, item[sortKey]))
 		}
@@ -716,33 +716,36 @@ type updater struct {
 }
 
 func (u *updater) node(ctx context.Context, tx dialect.ExecQuerier) (err error) {
-	updateItemBuilder, batchWrite := u.Update(u.Node.Table), dynamodb.BatchWriteItem()
+	updateItemBuilder, transactWrite := u.Update(u.Node.Table), dynamodb.TransactWriteItem()
 	addEdges, clearEdges := EdgeSpecs(u.Edges.Add).GroupRel(), EdgeSpecs(u.Edges.Clear).GroupRel()
 	idValue, err := attributevalue.Marshal(u.Node.ID.Value)
 	if err != nil {
 		return err
 	}
 	updateItemBuilder.WithKey(u.Node.ID.Key, idValue)
-	if err = u.update(ctx, u.Node.ID.Value, addEdges, clearEdges, updateItemBuilder, batchWrite); err != nil {
+	if err = u.update(ctx, u.Node.ID.Value, addEdges, clearEdges, updateItemBuilder, transactWrite); err != nil {
 		return err
 	}
 	updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
 	if err != nil {
+		return fmt.Errorf("update builder expression build: %w", err)
+	}
+	transactWrite.Append(u.Node.Table, updateItemBuilder)
+	op, args := transactWrite.Op()
+	if err := tx.Exec(ctx, op, args, &sdk.TransactWriteItemsOutput{}); err != nil {
 		return err
 	}
-	op, args := updateItemBuilder.Op()
-	var output sdk.UpdateItemOutput
-	err = tx.Exec(ctx, op, args, &output)
+	keyVal, err := attributevalue.Marshal(u.Node.ID.Value)
 	if err != nil {
+		return fmt.Errorf("key type not supported: %v has type %T", u.Node.ID.Value, u.Node.ID.Value)
+	}
+	getUpdatedItem := u.GetItem().From(u.Node.Table).WithKey(u.Node.ID.Key, keyVal)
+	op, args = getUpdatedItem.Op()
+	output := &sdk.GetItemOutput{}
+	if err := tx.Exec(ctx, op, args, output); err != nil {
 		return err
 	}
-	if !batchWrite.IsEmpty {
-		op, args := batchWrite.Op()
-		if err := tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
-			return err
-		}
-	}
-	return u.Assign(output.Attributes)
+	return u.Assign(output.Item)
 }
 
 func (u *updater) update(
@@ -751,7 +754,7 @@ func (u *updater) update(
 	addEdges map[Rel][]*EdgeSpec,
 	clearEdges map[Rel][]*EdgeSpec,
 	updateBuilder *dynamodb.UpdateItemBuilder,
-	batchWrite *dynamodb.BatchWriteItemBuilder) (err error) {
+	transactWrite dynamodb.AppendOper) (err error) {
 	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, updateBuilder)
 	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, updateBuilder)
 	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
@@ -760,10 +763,10 @@ func (u *updater) update(
 	if err := u.graph.addFKEdges(ctx, []interface{}{id}, append(addEdges[O2M], addEdges[O2O]...)); err != nil {
 		return fmt.Errorf("add FK edges: %w", err)
 	}
-	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], batchWrite); err != nil {
+	if err := u.graph.clearM2MEdges(ctx, []interface{}{id}, clearEdges[M2M], transactWrite); err != nil {
 		return fmt.Errorf("clear M2M edges: %w", err)
 	}
-	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M], batchWrite); err != nil {
+	if err := u.graph.addM2MEdges(ctx, []interface{}{id}, addEdges[M2M], transactWrite); err != nil {
 		return fmt.Errorf("add M2M edges: %w", err)
 	}
 	return nil
@@ -783,7 +786,7 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 	if len(scanOutput.Items) == 0 {
 		return 0, nil
 	}
-	batchWrite := dynamodb.BatchWriteItem()
+	transactWrite := dynamodb.TransactWriteItem()
 	for _, item := range scanOutput.Items {
 		addEdges, clearEdges := EdgeSpecs(u.Edges.Add).GroupRel(), EdgeSpecs(u.Edges.Clear).GroupRel()
 		updateItemBuilder := u.Update(u.Node.Table).WithKey(u.Node.ID.Key, item[u.Node.ID.Key])
@@ -792,24 +795,20 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 		if err != nil {
 			return 0, fmt.Errorf("unmarshal %v: %w", item[u.Node.ID.Key], err)
 		}
-		if err := u.update(ctx, id, addEdges, clearEdges, updateItemBuilder, batchWrite); err != nil {
+		if err := u.update(ctx, id, addEdges, clearEdges, updateItemBuilder, transactWrite); err != nil {
 			return 0, err
 		}
 		updateItemBuilder, err = updateItemBuilder.BuildExpression(types.ReturnValueAllNew)
 		if err != nil {
 			return 0, fmt.Errorf("update builder expression build: %w", err)
 		}
-		op, args := updateItemBuilder.Op()
-		err = tx.Exec(ctx, op, args, &sdk.UpdateItemOutput{})
-		if err != nil {
-			return 0, err
-		}
+		transactWrite.Append(u.Node.Table, updateItemBuilder)
 	}
-	if batchWrite.IsEmpty {
+	if transactWrite.IsEmpty {
 		return 0, nil
 	}
-	op, args = batchWrite.Op()
-	if err := u.tx.Exec(ctx, op, args, &sdk.BatchWriteItemOutput{}); err != nil {
+	op, args = transactWrite.Op()
+	if err := u.tx.Exec(ctx, op, args, &sdk.TransactWriteItemsOutput{}); err != nil {
 		return 0, err
 	}
 	return len(scanOutput.Items), nil
