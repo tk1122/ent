@@ -21,6 +21,12 @@ type Oper interface {
 	Op() (string, interface{})
 }
 
+// AppendOper wraps multiple operation builders like BatchWrite, TransactWrite.
+type AppendOper interface {
+	Oper
+	Append(string, Oper) Oper
+}
+
 // RootBuilder is the constructor for all DynamoDB operation builders.
 type RootBuilder struct{}
 
@@ -57,6 +63,11 @@ func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 	}
 }
 
+// GetItem returns a builder for GetItem operation.
+func (d RootBuilder) GetItem() *GetItemBuilder {
+	return &GetItemBuilder{}
+}
+
 // Select returns a builder for Select operation.
 func (d RootBuilder) Select(keys ...string) *Selector {
 	return (&Selector{
@@ -66,12 +77,14 @@ func (d RootBuilder) Select(keys ...string) *Selector {
 }
 
 const (
-	CreateTableOperation = "CreateTable"
-	PutItemOperation     = "PutItem"
-	UpdateItemOperation  = "UpdateItem"
-	BatchWriteOperation  = "BatchWrite"
-	ScanOperation        = "ScanOperation"
-	DeletItemOperation   = "DeleteItemOperation"
+	CreateTableOperation   = "CreateTable"
+	GetItemOperation       = "GetItem"
+	PutItemOperation       = "PutItem"
+	UpdateItemOperation    = "UpdateItem"
+	BatchWriteOperation    = "BatchWrite"
+	TransactWriteOperation = "TransactWrite"
+	ScanOperation          = "ScanOperation"
+	DeletItemOperation     = "DeleteItemOperation"
 )
 
 type (
@@ -246,7 +259,7 @@ func BatchWriteItem() *BatchWriteItemBuilder {
 }
 
 // Append appends a WriteRequest to BatchWriteItem.
-func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) *BatchWriteItemBuilder {
+func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) Oper {
 	b.requestMap[tableName] = append(b.requestMap[tableName], op)
 	b.IsEmpty = false
 	return b
@@ -256,6 +269,69 @@ func (b *BatchWriteItemBuilder) Append(tableName string, op Oper) *BatchWriteIte
 func (b *BatchWriteItemBuilder) Op() (string, interface{}) {
 	return BatchWriteOperation, &BatchWriteItemArgs{
 		operationMap: b.requestMap,
+	}
+}
+
+type (
+	// TransactWriteItemBuilder is the builder for TransactWriteItemBuilder operation.
+	TransactWriteItemBuilder struct {
+		requestMap map[string][]Oper
+		IsEmpty    bool
+	}
+
+	// TransactWriteItemArgs contains input of TransactWriteItem operation.
+	TransactWriteItemArgs struct {
+		operationMap map[string][]Oper
+	}
+)
+
+// TransactWriteItem returns a builder for TransactWriteItem operation.
+func TransactWriteItem() *TransactWriteItemBuilder {
+	return &TransactWriteItemBuilder{
+		requestMap: make(map[string][]Oper),
+		IsEmpty:    true,
+	}
+}
+
+// Append appends a WriteRequest to TransactWriteItem.
+func (b *TransactWriteItemBuilder) Append(tableName string, op Oper) Oper {
+	b.requestMap[tableName] = append(b.requestMap[tableName], op)
+	b.IsEmpty = false
+	return b
+}
+
+// Op returns name and input for TransactWriteItem operation.
+func (b *TransactWriteItemBuilder) Op() (string, interface{}) {
+	return TransactWriteOperation, &TransactWriteItemArgs{
+		operationMap: b.requestMap,
+	}
+}
+
+type (
+	// GetItemBuilder is the builder for GetItem operation.
+	GetItemBuilder struct {
+		tableName string
+		key       map[string]types.AttributeValue
+	}
+)
+
+// From selects which table for the GetItem operation.
+func (u *GetItemBuilder) From(tableName string) *GetItemBuilder {
+	u.tableName = tableName
+	return u
+}
+
+// WithKey selects which item to be selected for the GetItem operation.
+func (u *GetItemBuilder) WithKey(k string, v types.AttributeValue) *GetItemBuilder {
+	u.key[k] = v
+	return u
+}
+
+// Op returns name and input for GetItem operation.
+func (u *GetItemBuilder) Op() (string, interface{}) {
+	return GetItemOperation, &dynamodb.GetItemInput{
+		TableName: aws.String(u.tableName),
+		Key:       u.key,
 	}
 }
 

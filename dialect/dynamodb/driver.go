@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	uuid "github.com/satori/go.uuid"
 
 	"entgo.io/ent/dialect"
 )
@@ -87,10 +88,14 @@ func (c Client) run(ctx context.Context, op string, args, v interface{}) error {
 		return c.createTable(ctx, args, v)
 	case PutItemOperation:
 		return c.putItem(ctx, args, v)
+	case GetItemOperation:
+		return c.getItem(ctx, args, v)
 	case UpdateItemOperation:
 		return c.updateItem(ctx, args, v)
 	case BatchWriteOperation:
 		return c.batchWrite(ctx, args, v)
+	case TransactWriteOperation:
+		return c.transactWrite(ctx, args, v)
 	case ScanOperation:
 		return c.scan(ctx, args, v)
 	case DeletItemOperation:
@@ -135,6 +140,17 @@ func (c Client) putItem(ctx context.Context, args, v interface{}) (err error) {
 	return nil
 }
 
+func (c Client) getItem(ctx context.Context, args, v interface{}) (err error) {
+	output := v.(*dynamodb.GetItemOutput)
+	input := args.(*dynamodb.GetItemInput)
+	res, err := c.GetItem(ctx, input)
+	if err != nil {
+		return fmt.Errorf("DynamoDB GetItem operation: %v", err)
+	}
+	*output = *res
+	return nil
+}
+
 func (c Client) updateItem(ctx context.Context, args, v interface{}) (err error) {
 	output := v.(*dynamodb.UpdateItemOutput)
 	input := args.(*dynamodb.UpdateItemInput)
@@ -171,6 +187,54 @@ func (c Client) batchWrite(ctx context.Context, args, v interface{}) (err error)
 	})
 	if err != nil {
 		return fmt.Errorf("DynamoDB BatchWriteItem operation: %v", err)
+	}
+	return nil
+}
+
+func (c Client) transactWrite(ctx context.Context, args, v interface{}) (err error) {
+	transactWriteArgs := args.(*TransactWriteItemArgs)
+	var requestItems []types.TransactWriteItem
+	for _, ops := range transactWriteArgs.operationMap {
+		for _, op := range ops {
+			opName, opArgs := op.Op()
+			switch opName {
+			case PutItemOperation:
+				input := opArgs.(*dynamodb.PutItemInput)
+				requestItems = append(requestItems, types.TransactWriteItem{
+					Put: &types.Put{
+						TableName: input.TableName,
+						Item:      input.Item,
+					},
+				})
+			case DeletItemOperation:
+				input := opArgs.(*dynamodb.DeleteItemInput)
+				requestItems = append(requestItems, types.TransactWriteItem{
+					Delete: &types.Delete{
+						TableName: input.TableName,
+						Key:       input.Key,
+					},
+				})
+			case UpdateItemOperation:
+				input := opArgs.(*dynamodb.UpdateItemInput)
+				requestItems = append(requestItems, types.TransactWriteItem{
+					Update: &types.Update{
+						TableName:                 input.TableName,
+						Key:                       input.Key,
+						ConditionExpression:       input.ConditionExpression,
+						UpdateExpression:          input.UpdateExpression,
+						ExpressionAttributeNames:  input.ExpressionAttributeNames,
+						ExpressionAttributeValues: input.ExpressionAttributeValues,
+					},
+				})
+			}
+		}
+	}
+	_, err = c.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
+		TransactItems:      requestItems,
+		ClientRequestToken: aws.String(uuid.NewV4().String()),
+	})
+	if err != nil {
+		return fmt.Errorf("DynamoDB TransactWriteItem operation: %v", err)
 	}
 	return nil
 }

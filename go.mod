@@ -4,15 +4,14 @@ go 1.19
 
 require (
 	ariga.io/atlas v0.7.3-0.20221011160332-3ca609863edd
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/aws/aws-sdk-go-v2 v1.17.1
 	github.com/aws/aws-sdk-go-v2/config v1.17.8
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.2
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.4.28
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.17.3
-	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/go-openapi/inflect v0.19.0
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/json-iterator/go v1.1.12
@@ -21,14 +20,16 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/modern-go/reflect2 v1.0.2
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/spf13/cobra v1.6.0
 	github.com/satori/go.uuid v1.2.0
+	github.com/spf13/cobra v1.6.0
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/stretchr/testify v1.8.0
 	go.opencensus.io v0.23.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/tools v0.1.13-0.20220804200503-81c7dc4e4efa
 )
+
+require github.com/google/uuid v1.1.2
 
 require (
 	github.com/agext/levenshtein v1.2.1 // indirect
