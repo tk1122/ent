@@ -62,6 +62,7 @@ func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 		setAttributes:     make(map[string]interface{}),
 		addedAttributes:   make(map[string]interface{}),
 		removedAttributes: make(map[string]string),
+		IsEmpty:           true,
 	}
 }
 
@@ -171,6 +172,7 @@ type (
 		expBuilder        expression.Builder
 		exp               expression.Expression
 		returnValues      types.ReturnValue
+		IsEmpty           bool
 	}
 )
 
@@ -183,18 +185,21 @@ func (u *UpdateItemBuilder) WithKey(k string, v types.AttributeValue) *UpdateIte
 // Set sets the attribute to be set.
 func (u *UpdateItemBuilder) Set(k string, v interface{}) *UpdateItemBuilder {
 	u.setAttributes[k] = v
+	u.IsEmpty = false
 	return u
 }
 
 // Add sets the attribute to be added.
 func (u *UpdateItemBuilder) Add(k string, v interface{}) *UpdateItemBuilder {
 	u.addedAttributes[k] = v
+	u.IsEmpty = false
 	return u
 }
 
 // Remove clears the attribute of the item.
 func (u *UpdateItemBuilder) Remove(k string) *UpdateItemBuilder {
 	u.removedAttributes[k] = k
+	u.IsEmpty = false
 	return u
 }
 
