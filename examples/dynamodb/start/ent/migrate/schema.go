@@ -12,22 +12,66 @@ import (
 )
 
 var (
+	// CarsAttributes  holds the attributes for the "cars " table.
+	CarsAttributes = []*schema.Attribute{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "model", Type: field.TypeString},
+		{Name: "registered_at", Type: field.TypeTime},
+	}
+	// CarsTable holds the schema information for the "cars" table.
+	CarsTable = &schema.Table{
+		Name:       "cars",
+		Attributes: CarsAttributes,
+		PrimaryKey: []*schema.KeySchema{
+			{AttributeName: "id", KeyType: schema.KeyType("HASH")},
+		},
+	}
+	// GroupsAttributes  holds the attributes for the "groups " table.
+	GroupsAttributes = []*schema.Attribute{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "name", Type: field.TypeString},
+	}
+	// GroupsTable holds the schema information for the "groups" table.
+	GroupsTable = &schema.Table{
+		Name:       "groups",
+		Attributes: GroupsAttributes,
+		PrimaryKey: []*schema.KeySchema{
+			{AttributeName: "id", KeyType: schema.KeyType("HASH")},
+		},
+	}
 	// UsersAttributes  holds the attributes for the "users " table.
 	UsersAttributes = []*schema.Attribute{
-		{Name: "name", Type: field.TypeString},
+		{Name: "id", Type: field.TypeUUID},
 		{Name: "age", Type: field.TypeInt},
+		{Name: "name", Type: field.TypeString},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
 		Name:       "users",
 		Attributes: UsersAttributes,
 		PrimaryKey: []*schema.KeySchema{
-			{AttributeName: "name", KeyType: schema.KeyType("HASH")},
-			{AttributeName: "age", KeyType: schema.KeyType("RANGE")},
+			{AttributeName: "id", KeyType: schema.KeyType("HASH")},
+		},
+	}
+	// GroupUsersAttributes  holds the attributes for the "group_users " table.
+	GroupUsersAttributes = []*schema.Attribute{
+		{Name: "group_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// GroupUsersTable holds the schema information for the "group_users" table.
+	GroupUsersTable = &schema.Table{
+		Name:       "group_users",
+		Attributes: GroupUsersAttributes,
+		PrimaryKey: []*schema.KeySchema{
+			{AttributeName: "group_id", KeyType: schema.KeyType("HASH")},
+			{AttributeName: "user_id", KeyType: schema.KeyType("RANGE")},
 		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CarsTable,
+		GroupsTable,
 		UsersTable,
+		GroupUsersTable,
 	}
 )

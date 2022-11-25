@@ -59,13 +59,18 @@ func (d RootBuilder) Update(tableName string) *UpdateItemBuilder {
 		tableName:         tableName,
 		expBuilder:        expression.NewBuilder(),
 		key:               make(map[string]types.AttributeValue),
-		updatedAttributes: make(map[string]interface{}),
+		setAttributes:     make(map[string]interface{}),
+		addedAttributes:   make(map[string]interface{}),
+		removedAttributes: make(map[string]string),
+		IsEmpty:           true,
 	}
 }
 
 // GetItem returns a builder for GetItem operation.
 func (d RootBuilder) GetItem() *GetItemBuilder {
-	return &GetItemBuilder{}
+	return &GetItemBuilder{
+		key: make(map[string]types.AttributeValue),
+	}
 }
 
 // Select returns a builder for Select operation.
@@ -84,16 +89,16 @@ const (
 	BatchWriteOperation    = "BatchWrite"
 	TransactWriteOperation = "TransactWrite"
 	ScanOperation          = "ScanOperation"
-	DeletItemOperation     = "DeleteItemOperation"
+	DeleteItemOperation    = "DeleteItemOperation"
 )
 
 type (
 	// CreateTableBuilder is the builder for CreateTable operation.
 	CreateTableBuilder struct {
-		attributeDefinitions []types.AttributeDefinition
-		keySchema            []types.KeySchemaElement
-		provisiondThroughput *types.ProvisionedThroughput
-		tableName            string
+		attributeDefinitions  []types.AttributeDefinition
+		keySchema             []types.KeySchemaElement
+		provisionedThroughput *types.ProvisionedThroughput
+		tableName             string
 	}
 )
 
@@ -117,7 +122,7 @@ func (c *CreateTableBuilder) AddKeySchemaElement(attributeName string, keyType t
 
 // SetProvisionedThroughput sets the provisioned throughput of the table.
 func (c *CreateTableBuilder) SetProvisionedThroughput(readCap, writeCap int) *CreateTableBuilder {
-	c.provisiondThroughput = &types.ProvisionedThroughput{
+	c.provisionedThroughput = &types.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(int64(readCap)),
 		WriteCapacityUnits: aws.Int64(int64(writeCap)),
 	}
@@ -130,7 +135,7 @@ func (c *CreateTableBuilder) Op() (string, interface{}) {
 		TableName:             aws.String(c.tableName),
 		AttributeDefinitions:  c.attributeDefinitions,
 		KeySchema:             c.keySchema,
-		ProvisionedThroughput: c.provisiondThroughput,
+		ProvisionedThroughput: c.provisionedThroughput,
 	}
 }
 
@@ -161,11 +166,13 @@ type (
 	UpdateItemBuilder struct {
 		tableName         string
 		key               map[string]types.AttributeValue
-		updatedAttributes map[string]interface{}
-		removedAttributes []string
+		setAttributes     map[string]interface{}
+		addedAttributes   map[string]interface{}
+		removedAttributes map[string]string
 		expBuilder        expression.Builder
 		exp               expression.Expression
 		returnValues      types.ReturnValue
+		IsEmpty           bool
 	}
 )
 
@@ -175,15 +182,24 @@ func (u *UpdateItemBuilder) WithKey(k string, v types.AttributeValue) *UpdateIte
 	return u
 }
 
-// Set sets the attribute to be updated.
+// Set sets the attribute to be set.
 func (u *UpdateItemBuilder) Set(k string, v interface{}) *UpdateItemBuilder {
-	u.updatedAttributes[k] = v
+	u.setAttributes[k] = v
+	u.IsEmpty = false
+	return u
+}
+
+// Add sets the attribute to be added.
+func (u *UpdateItemBuilder) Add(k string, v interface{}) *UpdateItemBuilder {
+	u.addedAttributes[k] = v
+	u.IsEmpty = false
 	return u
 }
 
 // Remove clears the attribute of the item.
 func (u *UpdateItemBuilder) Remove(k string) *UpdateItemBuilder {
-	u.removedAttributes = append(u.removedAttributes, k)
+	u.removedAttributes[k] = k
+	u.IsEmpty = false
 	return u
 }
 
@@ -199,7 +215,7 @@ func (u *UpdateItemBuilder) BuildExpression(rv types.ReturnValue) (*UpdateItemBu
 	u.returnValues = rv
 	var setExp expression.UpdateBuilder
 	i := 0
-	for attr, val := range u.updatedAttributes {
+	for attr, val := range u.setAttributes {
 		if i == 0 {
 			setExp = expression.Set(expression.Name(attr), expression.Value(val))
 		} else {
@@ -209,13 +225,27 @@ func (u *UpdateItemBuilder) BuildExpression(rv types.ReturnValue) (*UpdateItemBu
 		i += 1
 	}
 	for _, attr := range u.removedAttributes {
-		if _, ok := u.updatedAttributes[attr]; ok {
+		if _, ok := u.setAttributes[attr]; ok {
 			continue
 		}
 		if i == 0 {
 			setExp = expression.Remove(expression.Name(attr))
 		} else {
 			setExp = setExp.Remove(expression.Name(attr))
+		}
+		i += 1
+	}
+	for attr, val := range u.addedAttributes {
+		if _, ok := u.setAttributes[attr]; ok {
+			continue
+		}
+		if _, ok := u.removedAttributes[attr]; ok {
+			continue
+		}
+		if i == 0 {
+			setExp = expression.Add(expression.Name(attr), expression.Value(val))
+		} else {
+			setExp = setExp.Add(expression.Name(attr), expression.Value(val))
 		}
 		i += 1
 	}
@@ -359,7 +389,7 @@ func (u *DeleteItemBuilder) Where(p *Predicate) *DeleteItemBuilder {
 
 // Op returns name and input for DeleteItem operation.
 func (u *DeleteItemBuilder) Op() (string, interface{}) {
-	return DeletItemOperation, &dynamodb.DeleteItemInput{
+	return DeleteItemOperation, &dynamodb.DeleteItemInput{
 		TableName: aws.String(u.tableName),
 		Key:       u.key,
 	}
@@ -488,7 +518,7 @@ func (s *Selector) AddError(err error) *Selector {
 	return s
 }
 
-// Op retutns name and args of Scan operation.
+// Op returns name and args of Scan operation.
 func (s *Selector) Op() (string, interface{}) {
 	return ScanOperation, &dynamodb.ScanInput{
 		TableName:                 aws.String(s.table),

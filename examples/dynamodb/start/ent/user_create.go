@@ -12,8 +12,11 @@ import (
 	"fmt"
 
 	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
+	"entgo.io/ent/examples/dynamodb/start/ent/car"
+	"entgo.io/ent/examples/dynamodb/start/ent/group"
 	"entgo.io/ent/examples/dynamodb/start/ent/user"
 	"entgo.io/ent/schema/field"
+	uuid "github.com/satori/go.uuid"
 )
 
 // UserCreate is the builder for creating a User entity.
@@ -23,22 +26,68 @@ type UserCreate struct {
 	hooks    []Hook
 }
 
-// SetName sets the "name" field.
-func (uc *UserCreate) SetName(s string) *UserCreate {
-	uc.mutation.SetName(s)
-	return uc
-}
-
 // SetAge sets the "age" field.
 func (uc *UserCreate) SetAge(i int) *UserCreate {
 	uc.mutation.SetAge(i)
 	return uc
 }
 
-// SetID sets the "id" field.
-func (uc *UserCreate) SetID(i int) *UserCreate {
-	uc.mutation.SetID(i)
+// SetName sets the "name" field.
+func (uc *UserCreate) SetName(s string) *UserCreate {
+	uc.mutation.SetName(s)
 	return uc
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (uc *UserCreate) SetNillableName(s *string) *UserCreate {
+	if s != nil {
+		uc.SetName(*s)
+	}
+	return uc
+}
+
+// SetID sets the "id" field.
+func (uc *UserCreate) SetID(u uuid.UUID) *UserCreate {
+	uc.mutation.SetID(u)
+	return uc
+}
+
+// SetNillableID sets the "id" field if the given value is not nil.
+func (uc *UserCreate) SetNillableID(u *uuid.UUID) *UserCreate {
+	if u != nil {
+		uc.SetID(*u)
+	}
+	return uc
+}
+
+// AddCarIDs adds the "cars" edge to the Car entity by IDs.
+func (uc *UserCreate) AddCarIDs(ids ...uuid.UUID) *UserCreate {
+	uc.mutation.AddCarIDs(ids...)
+	return uc
+}
+
+// AddCars adds the "cars" edges to the Car entity.
+func (uc *UserCreate) AddCars(c ...*Car) *UserCreate {
+	ids := make([]uuid.UUID, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return uc.AddCarIDs(ids...)
+}
+
+// AddGroupIDs adds the "groups" edge to the Group entity by IDs.
+func (uc *UserCreate) AddGroupIDs(ids ...uuid.UUID) *UserCreate {
+	uc.mutation.AddGroupIDs(ids...)
+	return uc
+}
+
+// AddGroups adds the "groups" edges to the Group entity.
+func (uc *UserCreate) AddGroups(g ...*Group) *UserCreate {
+	ids := make([]uuid.UUID, len(g))
+	for i := range g {
+		ids[i] = g[i].ID
+	}
+	return uc.AddGroupIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -52,6 +101,7 @@ func (uc *UserCreate) Save(ctx context.Context) (*User, error) {
 		err  error
 		node *User
 	)
+	uc.defaults()
 	if len(uc.hooks) == 0 {
 		if err = uc.check(); err != nil {
 			return nil, err
@@ -115,13 +165,30 @@ func (uc *UserCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (uc *UserCreate) defaults() {
+	if _, ok := uc.mutation.Name(); !ok {
+		v := user.DefaultName
+		uc.mutation.SetName(v)
+	}
+	if _, ok := uc.mutation.ID(); !ok {
+		v := user.DefaultID()
+		uc.mutation.SetID(v)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (uc *UserCreate) check() error {
-	if _, ok := uc.mutation.Name(); !ok {
-		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "User.name"`)}
-	}
 	if _, ok := uc.mutation.Age(); !ok {
 		return &ValidationError{Name: "age", err: errors.New(`ent: missing required field "User.age"`)}
+	}
+	if v, ok := uc.mutation.Age(); ok {
+		if err := user.AgeValidator(v); err != nil {
+			return &ValidationError{Name: "age", err: fmt.Errorf(`ent: validator failed for field "User.age": %w`, err)}
+		}
+	}
+	if _, ok := uc.mutation.Name(); !ok {
+		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "User.name"`)}
 	}
 	return nil
 }
@@ -140,7 +207,7 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 		_spec = &dynamodbgraph.CreateSpec{
 			Table: user.Table,
 			ID: &dynamodbgraph.FieldSpec{
-				Type: field.TypeInt,
+				Type: field.TypeUUID,
 				Key:  user.FieldID,
 			},
 		}
@@ -148,14 +215,6 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 	if id, ok := uc.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
-	}
-	if value, ok := uc.mutation.Name(); ok {
-		_spec.Fields = append(_spec.Fields, &dynamodbgraph.FieldSpec{
-			Type:  field.TypeString,
-			Value: value,
-			Key:   user.FieldName,
-		})
-		_node.Name = value
 	}
 	if value, ok := uc.mutation.Age(); ok {
 		_spec.Fields = append(_spec.Fields, &dynamodbgraph.FieldSpec{
@@ -165,5 +224,112 @@ func (uc *UserCreate) createSpec() (*User, *dynamodbgraph.CreateSpec) {
 		})
 		_node.Age = value
 	}
+	if value, ok := uc.mutation.Name(); ok {
+		_spec.Fields = append(_spec.Fields, &dynamodbgraph.FieldSpec{
+			Type:  field.TypeString,
+			Value: value,
+			Key:   user.FieldName,
+		})
+		_node.Name = value
+	}
+	if nodes := uc.mutation.CarsIDs(); len(nodes) > 0 {
+		edge := &dynamodbgraph.EdgeSpec{
+			Rel:        dynamodbgraph.O2M,
+			Inverse:    false,
+			Table:      user.CarsTable,
+			Attributes: []string{user.CarsAttribute},
+			Bidi:       false,
+			Target: &dynamodbgraph.EdgeTarget{
+				IDSpec: &dynamodbgraph.FieldSpec{
+					Type: field.TypeUUID,
+					Key:  car.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.GroupsIDs(); len(nodes) > 0 {
+		edge := &dynamodbgraph.EdgeSpec{
+			Rel:        dynamodbgraph.M2M,
+			Inverse:    true,
+			Table:      user.GroupsTable,
+			Attributes: user.GroupsAttributes,
+			Bidi:       false,
+			Target: &dynamodbgraph.EdgeTarget{
+				IDSpec: &dynamodbgraph.FieldSpec{
+					Type: field.TypeUUID,
+					Key:  group.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
+}
+
+// UserCreateBulk is the builder for creating many User entities in bulk.
+type UserCreateBulk struct {
+	config
+	builders []*UserCreate
+}
+
+// Save creates the User entities in the database.
+func (ucb *UserCreateBulk) Save(ctx context.Context) ([]*User, error) {
+	specs := make([]*dynamodbgraph.CreateSpec, len(ucb.builders))
+	nodes := make([]*User, len(ucb.builders))
+	mutators := make([]Mutator, len(ucb.builders))
+	for i := range ucb.builders {
+		func(i int, root context.Context) {
+			builder := ucb.builders[i]
+			builder.defaults()
+			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
+				mutation, ok := m.(*UserMutation)
+				if !ok {
+					return nil, fmt.Errorf("unexpected mutation type %T", m)
+				}
+				if err := builder.check(); err != nil {
+					return nil, err
+				}
+				builder.mutation = mutation
+				nodes[i], specs[i] = builder.createSpec()
+				var err error
+				if i < len(mutators)-1 {
+					_, err = mutators[i+1].Mutate(root, ucb.builders[i+1].mutation)
+				} else {
+					// Invoke the actual operation on the latest mutation in the chain.
+					err = dynamodbgraph.BatchCreate(ctx, ucb.driver, &dynamodbgraph.BatchCreateSpec{Nodes: specs})
+				}
+				mutation.done = true
+				if err != nil {
+					return nil, err
+				}
+				return nodes[i], nil
+			})
+			for i := len(builder.hooks) - 1; i >= 0; i-- {
+				mut = builder.hooks[i](mut)
+			}
+			mutators[i] = mut
+		}(i, ctx)
+	}
+	if len(mutators) > 0 {
+		if _, err := mutators[0].Mutate(ctx, ucb.builders[0].mutation); err != nil {
+			return nil, err
+		}
+	}
+	return nodes, nil
+}
+
+// SaveX calls Save and panics if Save returns an error.
+func (ucb *UserCreateBulk) SaveX(ctx context.Context) []*User {
+	v, err := ucb.Save(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

@@ -5,6 +5,8 @@
 package schema
 
 import (
+	"regexp"
+
 	uuid "github.com/satori/go.uuid"
 
 	"entgo.io/ent"
@@ -13,36 +15,30 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// User holds the schema definition for the User entity.
-type User struct {
+// Group holds the schema definition for the Group entity.
+type Group struct {
 	ent.Schema
 }
 
-// Fields of the User.
-func (User) Fields() []ent.Field {
+// Fields of the Group.
+func (Group) Fields() []ent.Field {
 	return []ent.Field{
-		field.Int("age").
-			Positive(),
 		field.String("name").
-			Default("unknown"),
+			// regexp validation for group name.
+			Match(regexp.MustCompile("[a-zA-Z_]+$")),
 		field.UUID("id", uuid.UUID{}).Default(uuid.NewV4),
 	}
 }
 
-// Edges of the User.
-func (User) Edges() []ent.Edge {
+// Edges of the Group.
+func (Group) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.To("cars", Car.Type),
-		// create an inverse-edge called "groups" of type `Group`
-		// and reference it to the "users" edge (in Group schema)
-		// explicitly using the `Ref` method.
-		edge.From("groups", Group.Type).
-			Ref("users"),
+		edge.To("users", User.Type),
 	}
 }
 
-// Indexes of the User.
-func (User) Indexes() []ent.Index {
+// Indexes of the Group.
+func (Group) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("id").Unique(),
 	}
