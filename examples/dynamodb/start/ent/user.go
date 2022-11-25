@@ -6,13 +6,107 @@
 
 package ent
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	uuid "github.com/satori/go.uuid"
+)
+
 // User is the model entity for the User schema.
 type User struct {
 	config `json:"-"`
 	// ID of the ent.
-	ID int `json:"id,omitempty"`
-	// Name holds the value of the "name" field.
-	Name string `json:"name,omitempty"`
+	ID uuid.UUID `json:"id,omitempty"`
 	// Age holds the value of the "age" field.
 	Age int `json:"age,omitempty"`
+	// Name holds the value of the "name" field.
+	Name string `json:"name,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the UserQuery when eager-loading is set.
+	Edges    UserEdges `json:"edges"`
+	group_id []uuid.UUID
+}
+
+// UserEdges holds the relations/edges for other nodes in the graph.
+type UserEdges struct {
+	// Cars holds the value of the cars edge.
+	Cars []*Car `json:"cars,omitempty"`
+	// Groups holds the value of the groups edge.
+	Groups []*Group `json:"groups,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [2]bool
+}
+
+// UserItem represents item schema in MongoDB.
+type UserItem struct {
+	ID   uuid.UUID `dynamodbav:"id"`
+	Age  int       `dynamodbav:"age"`
+	Name string    `dynamodbav:"name"`
+
+	GroupID []uuid.UUID `dynamodbav:"group_id"`
+}
+
+// item returns the object for receiving item from dynamodb.
+func (*User) item() interface{} {
+	return &UserItem{}
+}
+
+// FromItem scans the dynamodb response item into User.
+func (u *User) FromItem(item interface{}) error {
+	var userItem UserItem
+	err := attributevalue.UnmarshalMap(item.(map[string]types.AttributeValue), &userItem)
+	if err != nil {
+		return err
+	}
+	u.ID = userItem.ID
+	u.Age = userItem.Age
+	u.Name = userItem.Name
+
+	u.group_id = userItem.GroupID
+
+	return nil
+}
+
+// QueryCars queries the "cars" edge of the User entity.
+func (u *User) QueryCars() *CarQuery {
+	return (&UserClient{config: u.config}).QueryCars(u)
+}
+
+// QueryGroups queries the "groups" edge of the User entity.
+func (u *User) QueryGroups() *GroupQuery {
+	return (&UserClient{config: u.config}).QueryGroups(u)
+}
+
+// Update returns a builder for updating this User.
+// Note that you need to call User.Unwrap() before calling this method if this User
+// was returned from a transaction, and the transaction was committed or rolled back.
+func (u *User) Update() *UserUpdateOne {
+	return (&UserClient{config: u.config}).UpdateOne(u)
+}
+
+// String implements the fmt.Stringer.
+func (u *User) String() string {
+	var builder strings.Builder
+	builder.WriteString("User(")
+	builder.WriteString(fmt.Sprintf("id=%v, ", u.ID))
+	builder.WriteString("age=")
+	builder.WriteString(fmt.Sprintf("%v", u.Age))
+	builder.WriteString(", ")
+	builder.WriteString("name=")
+	builder.WriteString(u.Name)
+	builder.WriteByte(')')
+	return builder.String()
+}
+
+// Users is a parsable slice of User.
+type Users []*User
+
+func (u Users) config(cfg config) {
+	for _i := range u {
+		u[_i].config = cfg
+	}
 }

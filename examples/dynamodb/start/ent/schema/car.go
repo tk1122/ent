@@ -13,36 +13,36 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// User holds the schema definition for the User entity.
-type User struct {
+// Car holds the schema definition for the Car entity.
+type Car struct {
 	ent.Schema
 }
 
-// Fields of the User.
-func (User) Fields() []ent.Field {
+// Fields of the Car.
+func (Car) Fields() []ent.Field {
 	return []ent.Field{
-		field.Int("age").
-			Positive(),
-		field.String("name").
-			Default("unknown"),
 		field.UUID("id", uuid.UUID{}).Default(uuid.NewV4),
+		field.String("model"),
+		field.Time("registered_at"),
 	}
 }
 
-// Edges of the User.
-func (User) Edges() []ent.Edge {
+// Edges of the Car.
+func (Car) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.To("cars", Car.Type),
-		// create an inverse-edge called "groups" of type `Group`
-		// and reference it to the "users" edge (in Group schema)
+		// create an inverse-edge called "owner" of type `User`
+		// and reference it to the "cars" edge (in User schema)
 		// explicitly using the `Ref` method.
-		edge.From("groups", Group.Type).
-			Ref("users"),
+		edge.From("owner", User.Type).
+			Ref("cars").
+			// setting the edge to unique, ensure
+			// that a car can have only one owner.
+			Unique(),
 	}
 }
 
-// Indexes of the User.
-func (User) Indexes() []ent.Index {
+// Indexes of the Car.
+func (Car) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("id").Unique(),
 	}

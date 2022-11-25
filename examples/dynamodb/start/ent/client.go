@@ -7,13 +7,20 @@
 package ent
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"entgo.io/ent/examples/dynamodb/start/ent/migrate"
+	uuid "github.com/satori/go.uuid"
+
+	"entgo.io/ent/examples/dynamodb/start/ent/car"
+	"entgo.io/ent/examples/dynamodb/start/ent/group"
+	"entgo.io/ent/examples/dynamodb/start/ent/user"
 
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/dynamodb"
+	"entgo.io/ent/dialect/dynamodb/dynamodbgraph"
 )
 
 // Client is the client that holds all ent builders.
@@ -21,6 +28,10 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Car is the client for interacting with the Car builders.
+	Car *CarClient
+	// Group is the client for interacting with the Group builders.
+	Group *GroupClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -36,6 +47,8 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Car = NewCarClient(c.config)
+	c.Group = NewGroupClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -56,6 +69,226 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 	}
 }
 
+// Use adds the mutation hooks to all the entity clients.
+// In order to add hooks to a specific client, call: `client.Node.Use(...)`.
+func (c *Client) Use(hooks ...Hook) {
+	c.Car.Use(hooks...)
+	c.Group.Use(hooks...)
+	c.User.Use(hooks...)
+}
+
+// CarClient is a client for the Car schema.
+type CarClient struct {
+	config
+}
+
+// NewCarClient returns a client for the Car from the given config.
+func NewCarClient(c config) *CarClient {
+	return &CarClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `car.Hooks(f(g(h())))`.
+func (c *CarClient) Use(hooks ...Hook) {
+	c.hooks.Car = append(c.hooks.Car, hooks...)
+}
+
+// Create returns a builder for creating a Car entity.
+func (c *CarClient) Create() *CarCreate {
+	mutation := newCarMutation(c.config, OpCreate)
+	return &CarCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Car entities.
+func (c *CarClient) CreateBulk(builders ...*CarCreate) *CarCreateBulk {
+	return &CarCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Car.
+func (c *CarClient) Update() *CarUpdate {
+	mutation := newCarMutation(c.config, OpUpdate)
+	return &CarUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CarClient) UpdateOne(ca *Car) *CarUpdateOne {
+	mutation := newCarMutation(c.config, OpUpdateOne, withCar(ca))
+	return &CarUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CarClient) UpdateOneID(id uuid.UUID) *CarUpdateOne {
+	mutation := newCarMutation(c.config, OpUpdateOne, withCarID(id))
+	return &CarUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Car.
+func (c *CarClient) Delete() *CarDelete {
+	mutation := newCarMutation(c.config, OpDelete)
+	return &CarDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CarClient) DeleteOne(ca *Car) *CarDeleteOne {
+	return c.DeleteOneID(ca.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *CarClient) DeleteOneID(id uuid.UUID) *CarDeleteOne {
+	builder := c.Delete().Where(car.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CarDeleteOne{builder}
+}
+
+// Query returns a query builder for Car.
+func (c *CarClient) Query() *CarQuery {
+	return &CarQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a Car entity by its id.
+func (c *CarClient) Get(ctx context.Context, id uuid.UUID) (*Car, error) {
+	return c.Query().Where(car.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CarClient) GetX(ctx context.Context, id uuid.UUID) *Car {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryOwner queries the owner edge of a Car.
+func (c *CarClient) QueryOwner(ca *Car) *UserQuery {
+	query := &UserQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := ca.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(car.Table, car.FieldID, id),
+			dynamodbgraph.To(user.Table, user.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2O, true, false, car.OwnerTable, car.OwnerAttribute),
+		)
+		fromV = dynamodbgraph.Neighbors(step, ca.config.driver)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CarClient) Hooks() []Hook {
+	return c.hooks.Car
+}
+
+// GroupClient is a client for the Group schema.
+type GroupClient struct {
+	config
+}
+
+// NewGroupClient returns a client for the Group from the given config.
+func NewGroupClient(c config) *GroupClient {
+	return &GroupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `group.Hooks(f(g(h())))`.
+func (c *GroupClient) Use(hooks ...Hook) {
+	c.hooks.Group = append(c.hooks.Group, hooks...)
+}
+
+// Create returns a builder for creating a Group entity.
+func (c *GroupClient) Create() *GroupCreate {
+	mutation := newGroupMutation(c.config, OpCreate)
+	return &GroupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Group entities.
+func (c *GroupClient) CreateBulk(builders ...*GroupCreate) *GroupCreateBulk {
+	return &GroupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Group.
+func (c *GroupClient) Update() *GroupUpdate {
+	mutation := newGroupMutation(c.config, OpUpdate)
+	return &GroupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GroupClient) UpdateOne(gr *Group) *GroupUpdateOne {
+	mutation := newGroupMutation(c.config, OpUpdateOne, withGroup(gr))
+	return &GroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GroupClient) UpdateOneID(id uuid.UUID) *GroupUpdateOne {
+	mutation := newGroupMutation(c.config, OpUpdateOne, withGroupID(id))
+	return &GroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Group.
+func (c *GroupClient) Delete() *GroupDelete {
+	mutation := newGroupMutation(c.config, OpDelete)
+	return &GroupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GroupClient) DeleteOne(gr *Group) *GroupDeleteOne {
+	return c.DeleteOneID(gr.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *GroupClient) DeleteOneID(id uuid.UUID) *GroupDeleteOne {
+	builder := c.Delete().Where(group.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GroupDeleteOne{builder}
+}
+
+// Query returns a query builder for Group.
+func (c *GroupClient) Query() *GroupQuery {
+	return &GroupQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a Group entity by its id.
+func (c *GroupClient) Get(ctx context.Context, id uuid.UUID) (*Group, error) {
+	return c.Query().Where(group.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GroupClient) GetX(ctx context.Context, id uuid.UUID) *Group {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUsers queries the users edge of a Group.
+func (c *GroupClient) QueryUsers(gr *Group) *UserQuery {
+	query := &UserQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := gr.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(group.Table, group.FieldID, id),
+			dynamodbgraph.To(user.Table, user.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2M, false, false, group.UsersTable, group.UsersAttributes...),
+		)
+		fromV = dynamodbgraph.Neighbors(step, gr.config.driver)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *GroupClient) Hooks() []Hook {
+	return c.hooks.Group
+}
+
 // UserClient is a client for the User schema.
 type UserClient struct {
 	config
@@ -66,10 +299,111 @@ func NewUserClient(c config) *UserClient {
 	return &UserClient{config: c}
 }
 
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `user.Hooks(f(g(h())))`.
+func (c *UserClient) Use(hooks ...Hook) {
+	c.hooks.User = append(c.hooks.User, hooks...)
+}
+
 // Create returns a builder for creating a User entity.
 func (c *UserClient) Create() *UserCreate {
 	mutation := newUserMutation(c.config, OpCreate)
 	return &UserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of User entities.
+func (c *UserClient) CreateBulk(builders ...*UserCreate) *UserCreateBulk {
+	return &UserCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for User.
+func (c *UserClient) Update() *UserUpdate {
+	mutation := newUserMutation(c.config, OpUpdate)
+	return &UserUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UserClient) UpdateOne(u *User) *UserUpdateOne {
+	mutation := newUserMutation(c.config, OpUpdateOne, withUser(u))
+	return &UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *UserClient) UpdateOneID(id uuid.UUID) *UserUpdateOne {
+	mutation := newUserMutation(c.config, OpUpdateOne, withUserID(id))
+	return &UserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for User.
+func (c *UserClient) Delete() *UserDelete {
+	mutation := newUserMutation(c.config, OpDelete)
+	return &UserDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UserClient) DeleteOne(u *User) *UserDeleteOne {
+	return c.DeleteOneID(u.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *UserClient) DeleteOneID(id uuid.UUID) *UserDeleteOne {
+	builder := c.Delete().Where(user.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UserDeleteOne{builder}
+}
+
+// Query returns a query builder for User.
+func (c *UserClient) Query() *UserQuery {
+	return &UserQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a User entity by its id.
+func (c *UserClient) Get(ctx context.Context, id uuid.UUID) (*User, error) {
+	return c.Query().Where(user.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UserClient) GetX(ctx context.Context, id uuid.UUID) *User {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCars queries the cars edge of a User.
+func (c *UserClient) QueryCars(u *User) *CarQuery {
+	query := &CarQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := u.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(user.Table, user.FieldID, id),
+			dynamodbgraph.To(car.Table, car.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.O2M, false, false, user.CarsTable, user.CarsAttribute),
+		)
+		fromV = dynamodbgraph.Neighbors(step, u.config.driver)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryGroups queries the groups edge of a User.
+func (c *UserClient) QueryGroups(u *User) *GroupQuery {
+	query := &GroupQuery{config: c.config}
+	query.path = func(context.Context) (fromV *dynamodb.Selector, _ error) {
+		id := u.ID
+		step := dynamodbgraph.NewStep(
+			dynamodbgraph.From(user.Table, user.FieldID, id),
+			dynamodbgraph.To(group.Table, group.FieldID, []string{}),
+			dynamodbgraph.Edge(dynamodbgraph.M2M, true, false, user.GroupsTable, user.GroupsAttributes...),
+		)
+		fromV = dynamodbgraph.Neighbors(step, u.config.driver)
+		return fromV, nil
+	}
+	return query
 }
 
 // Hooks returns the client hooks.
