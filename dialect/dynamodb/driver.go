@@ -98,7 +98,7 @@ func (c Client) run(ctx context.Context, op string, args, v interface{}) error {
 		return c.transactWrite(ctx, args, v)
 	case ScanOperation:
 		return c.scan(ctx, args, v)
-	case DeletItemOperation:
+	case DeleteItemOperation:
 		return c.deleteItem(ctx, args, v)
 	default:
 		return fmt.Errorf("%s operation is unsupported", op)
@@ -174,7 +174,7 @@ func (c Client) batchWrite(ctx context.Context, args, v interface{}) (err error)
 				requestItems[tableName] = append(requestItems[tableName], types.WriteRequest{
 					PutRequest: &types.PutRequest{Item: input.Item},
 				})
-			case DeletItemOperation:
+			case DeleteItemOperation:
 				input := opArgs.(*dynamodb.DeleteItemInput)
 				requestItems[tableName] = append(requestItems[tableName], types.WriteRequest{
 					DeleteRequest: &types.DeleteRequest{Key: input.Key},
@@ -206,7 +206,7 @@ func (c Client) transactWrite(ctx context.Context, args, v interface{}) (err err
 						Item:      input.Item,
 					},
 				})
-			case DeletItemOperation:
+			case DeleteItemOperation:
 				input := opArgs.(*dynamodb.DeleteItemInput)
 				requestItems = append(requestItems, types.TransactWriteItem{
 					Delete: &types.Delete{

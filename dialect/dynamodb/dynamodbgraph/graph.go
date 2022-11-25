@@ -755,8 +755,10 @@ func (u *updater) update(
 	clearEdges map[Rel][]*EdgeSpec,
 	updateBuilder *dynamodb.UpdateItemBuilder,
 	transactWrite dynamodb.AppendOper) (err error) {
-	u.setAddAttributesAndEdges(ctx, u.Fields.Set, addEdges, updateBuilder)
-	u.setClearAttributesAndEdges(ctx, u.Fields.Clear, clearEdges, updateBuilder)
+	//
+	u.setFieldsAndEdges(ctx, u.Fields.Set, addEdges, updateBuilder)
+	u.clearFieldsAndEdges(ctx, u.Fields.Clear, clearEdges, updateBuilder)
+	u.addFields(ctx, u.Fields.Add, updateBuilder)
 	if err := u.graph.clearFKEdges(ctx, []interface{}{id}, append(clearEdges[O2M], clearEdges[O2O]...)); err != nil {
 		return fmt.Errorf("clear FK edges: %w", err)
 	}
@@ -814,7 +816,7 @@ func (u *updater) nodes(ctx context.Context, tx dialect.ExecQuerier) (int, error
 	return len(scanOutput.Items), nil
 }
 
-func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldSpec, addEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
+func (u *updater) setFieldsAndEdges(ctx context.Context, fields []*FieldSpec, addEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
 	for _, f := range fields {
 		update.Set(f.Key, f.Value)
 	}
@@ -828,7 +830,7 @@ func (u *updater) setAddAttributesAndEdges(ctx context.Context, fields []*FieldS
 	}
 }
 
-func (u *updater) setClearAttributesAndEdges(ctx context.Context, fields []*FieldSpec, clearEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
+func (u *updater) clearFieldsAndEdges(ctx context.Context, fields []*FieldSpec, clearEdges map[Rel][]*EdgeSpec, update *dynamodb.UpdateItemBuilder) {
 	for _, f := range fields {
 		update.Remove(f.Key)
 	}
@@ -839,6 +841,12 @@ func (u *updater) setClearAttributesAndEdges(ctx context.Context, fields []*Fiel
 		if e.Inverse || e.Bidi {
 			update.Remove(e.Attributes[0])
 		}
+	}
+}
+
+func (u *updater) addFields(ctx context.Context, fields []*FieldSpec, update *dynamodb.UpdateItemBuilder) {
+	for _, f := range fields {
+		update.Add(f.Key, f.Value)
 	}
 }
 
