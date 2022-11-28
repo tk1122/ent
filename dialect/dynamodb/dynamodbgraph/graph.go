@@ -366,7 +366,7 @@ func (g *graph) clearM2MEdges(ctx context.Context, ids []interface{}, edges []*E
 		id := ids[0]
 		partitionKey, sortKey := e.Attributes[0], e.Attributes[1]
 		var joinTableQuery *dynamodb.Selector
-		if e.Bidi {
+		if e.Bidi && len(e.Target.Nodes) > 0 {
 			joinTableQuery = dynamodb.Select().From(e.Table).Where(
 				dynamodb.Or(
 					dynamodb.And(dynamodb.EQ(partitionKey, id), dynamodb.EQ(sortKey, e.Target.Nodes[0])),
