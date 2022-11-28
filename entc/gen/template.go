@@ -103,14 +103,14 @@ var (
 				"dialect/*/query/fields/init/*",
 			},
 		},
-		//{
-		//	Name:   "context",
-		//	Format: "context.go",
-		//},
-		//{
-		//	Name:   "tx",
-		//	Format: "tx.go",
-		//},
+		{
+			Name:   "context",
+			Format: "context.go",
+		},
+		{
+			Name:   "tx",
+			Format: "tx.go",
+		},
 		{
 			Name:   "config",
 			Format: "config.go",
@@ -140,28 +140,28 @@ var (
 			Name:   "hook",
 			Format: "hook/hook.go",
 		},
-		//{
-		//	Name:   "privacy",
-		//	Format: "privacy/privacy.go",
-		//	Skip: func(g *Graph) bool {
-		//		return !g.featureEnabled(FeaturePrivacy)
-		//	},
-		//},
-		//{
-		//	Name:   "entql",
-		//	Format: "entql.go",
-		//	Skip: func(g *Graph) bool {
-		//		return !g.featureEnabled(FeatureEntQL)
-		//	},
-		//},
+		{
+			Name:   "privacy",
+			Format: "privacy/privacy.go",
+			Skip: func(g *Graph) bool {
+				return !g.featureEnabled(FeaturePrivacy)
+			},
+		},
+		{
+			Name:   "entql",
+			Format: "entql.go",
+			Skip: func(g *Graph) bool {
+				return !g.featureEnabled(FeatureEntQL)
+			},
+		},
 		{
 			Name:   "runtime/ent",
 			Format: "runtime.go",
 		},
-		//{
-		//	Name:   "enttest",
-		//	Format: "enttest/enttest.go",
-		//},
+		{
+			Name:   "enttest",
+			Format: "enttest/enttest.go",
+		},
 		{
 			Name:   "runtime/pkg",
 			Format: "runtime/runtime.go",
