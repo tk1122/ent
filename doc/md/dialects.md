@@ -39,3 +39,9 @@ TiDB support is in preview and requires the [Atlas migration engine](#atlas-inte
 TiDB is MySQL compatible and thus any feature that works on MySQL _should_ work on TiDB as well.  
 For a list of known compatibility issues, visit: https://docs.pingcap.com/tidb/stable/mysql-compatibility  
 The integration with TiDB is currently tested on versions `5.4.0`, `6.0.0`.
+
+
+## DynamoDB **(<ins>preview</ins>)**
+
+DynamoDB does not support migration, and it's considered experimental. The list of all supported
+features could be found here [DynamoDB](../../dialect/dynamodb/README.md).
